@@ -5,7 +5,6 @@ import { auth } from '@/lib/auth'
 import { getSettings } from '@/lib/settings'
 import { Providers } from '@/components/Providers'
 import { PWAInstallPrompt } from '@/components/ui/PWAInstallPrompt'
-import { PWASplashScreen } from '@/components/ui/PWASplashScreen'
 import './globals.css'
 
 const jakarta = Plus_Jakarta_Sans({
@@ -75,7 +74,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           Skip to content
         </a>
         <Providers darkModeEnabled={darkModeEnabled}>
-          <PWASplashScreen />
           {children}
           <PWAInstallPrompt />
         </Providers>
