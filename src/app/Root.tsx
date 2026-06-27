@@ -4,7 +4,6 @@ import { AdminAuthProvider } from './context/AdminAuthContext';
 import { CartProvider } from './context/CartContext';
 import { ProductCatalogProvider } from './context/ProductCatalogContext';
 import { StoreConfigProvider } from './context/StoreConfigContext';
-import { OrderProvider } from './context/OrderContext';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from './components/ui/sonner';
@@ -23,7 +22,6 @@ export default function Root() {
           <StoreConfigProvider>
             <ProductCatalogProvider>
               <CartProvider>
-                <OrderProvider>
                   <ErrorBoundary>
                     <style>{`html { scroll-behavior: smooth; }`}</style>
                     <div className="flex min-h-screen flex-col bg-background font-sans text-foreground">
@@ -35,7 +33,6 @@ export default function Root() {
                     expand={false}
                     toastOptions={{ duration: 5000 }}
                   />
-                </OrderProvider>
               </CartProvider>
             </ProductCatalogProvider>
           </StoreConfigProvider>

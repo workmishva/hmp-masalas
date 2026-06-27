@@ -339,7 +339,10 @@ export default function Navbar() {
                     <ShoppingCart size={64} className="mb-4 opacity-50" />
                     <p className="text-lg font-medium text-muted-foreground">Your cart is empty</p>
                     <button
-                      onClick={() => setIsCartOpen(false)}
+                      onClick={() => {
+                        setIsCartOpen(false);
+                        navigate('/masalas');
+                      }}
                       className="mt-6 rounded-full bg-primary px-6 py-2 font-medium text-white"
                     >
                       Continue Shopping

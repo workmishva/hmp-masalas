@@ -48,7 +48,7 @@ export default function SelectWeightModal({ isOpen, onClose, product }: SelectWe
         <Dialog.Overlay className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[70] flex max-h-[92vh] w-full max-w-4xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[2rem] bg-card shadow-2xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] md:flex-row">
           
-          <div className="relative min-h-[300px] w-full bg-muted md:w-1/2">
+          <div className="relative h-48 w-full shrink-0 bg-muted sm:h-64 md:h-auto md:w-1/2">
             <ImageWithFallback
               src={resolveCatalogImage(product.image)}
               alt={product.name}
@@ -61,7 +61,7 @@ export default function SelectWeightModal({ isOpen, onClose, product }: SelectWe
             </div>
           </div>
 
-          <div className="flex w-full flex-col bg-card md:w-1/2">
+          <div className="flex w-full min-h-0 flex-1 flex-col overflow-hidden bg-card md:w-1/2">
             
             <div className="shrink-0 p-6 pb-0 md:p-8 md:pb-0">
               <div className="mb-4 flex items-start justify-between">

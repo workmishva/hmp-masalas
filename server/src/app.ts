@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import connectDB from './config/database';
 import orderRoutes from './routes/orderRoutes';
 import userRoutes from './routes/userRoutes';
+import adminRoutes from './routes/adminRoutes';
 
 dotenv.config();
 
@@ -39,9 +40,17 @@ app.use(mongoSanitize());
 // 6. Data sanitization against XSS (Cross-Site Scripting)
 app.use(xss());
 
+import productRoutes from './routes/productRoutes';
+import configRoutes from './routes/configRoutes';
+import cartRoutes from './routes/cartRoutes';
+
 // 7. Mount secure routes
 app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/config', configRoutes);
+app.use('/api/cart', cartRoutes);
 
 // Return 404 for undefined routes
 app.all('*', (req, res, next) => {

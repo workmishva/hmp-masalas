@@ -1,3 +1,4 @@
+/* @refresh reset */
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import {
   User,
@@ -231,6 +232,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
+      // Clear persisted cart for the current user on explicit logout
+      if (user?.uid) {
+        localStorage.removeItem(`cart_${user.uid}`);
+      }
       await signOut(auth);
       resetOtpState();
       showSuccessToast('Goodbye!', 'Logged out successfully.');

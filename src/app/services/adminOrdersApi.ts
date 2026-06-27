@@ -8,7 +8,7 @@ export type AdminOrderStatus =
   | 'delivered'
   | 'cancelled';
 
-export type AdminPaymentStatus = 'pending' | 'completed';
+export type AdminPaymentStatus = 'pending' | 'completed' | 'cancelled';
 
 export interface AdminOrderItem {
   productId: string;
@@ -19,10 +19,24 @@ export interface AdminOrderItem {
   taxPercent: number;
 }
 
+export interface AdminShippingAddress {
+  fullName: string;
+  house: string;
+  street: string;
+  nearby?: string;
+  cityVillage: string;
+  district: string;
+  state: string;
+  country: string;
+  postalCode: string;
+  phone: string;
+}
+
 export interface AdminOrder {
   orderId: string;
   userId: string;
   items: AdminOrderItem[];
+  shippingAddress: AdminShippingAddress;
   paymentMethod: 'upi' | 'whatsapp';
   paymentStatus?: AdminPaymentStatus;
   shippingMethod: 'standard' | 'express';
@@ -45,19 +59,27 @@ interface AdminOrderUpdateResponse {
 }
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
-const DEFAULT_ADMIN_USERNAME = import.meta.env.VITE_ADMIN_ID;
-
-const DEFAULT_ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD;
 
 async function buildAdminAuthorization(user: User | null) {
+  // If we have a Firebase user token, try that first
   if (user) {
-    const token = await user.getIdToken();
-    return `Bearer ${token}`;
+    try {
+      const token = await user.getIdToken();
+      return `Bearer ${token}`;
+    } catch (e) {
+      console.warn("Failed to get Firebase token", e);
+    }
   }
 
-  const username = import.meta.env.VITE_ADMIN_USERNAME ?? DEFAULT_ADMIN_USERNAME;
-  const password = import.meta.env.VITE_ADMIN_PASSWORD ?? DEFAULT_ADMIN_PASSWORD;
-  return `Basic ${btoa(`${username}:${password}`)}`;
+  // Fallback to our custom admin JWT from sessionStorage
+  if (typeof window !== 'undefined') {
+    const customToken = window.sessionStorage.getItem('hmp-admin-jwt');
+    if (customToken) {
+      return `Bearer ${customToken}`;
+    }
+  }
+
+  return '';
 }
 
 async function buildAdminHeaders(
@@ -134,4 +156,39 @@ export async function markWhatsAppOrderPaymentCompleted(user: User | null, order
 
   const data = (await response.json()) as AdminOrderUpdateResponse;
   return data.order;
+}
+
+export interface DailySalesData {
+  date: string;
+  day: string;
+  orders: number;
+  revenue: number;
+}
+
+export interface AdminDashboardStats {
+  totalOrders: number;
+  pendingOrders: number;
+  totalRevenue: number;
+  totalCustomers: number;
+  dailySales: DailySalesData[];
+  statusBreakdown: Record<string, number>;
+}
+
+export async function fetchAdminDashboardStats(user: User | null) {
+  let url = `${BACKEND_URL}/api/orders/admin/stats`;
+  const resetTimestamp = localStorage.getItem('adminDashboardResetAt');
+  if (resetTimestamp) {
+    url += `?since=${encodeURIComponent(resetTimestamp)}`;
+  }
+
+  const response = await fetch(url, {
+    headers: await buildAdminHeaders(user),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to fetch admin stats'));
+  }
+
+  const data = (await response.json()) as AdminDashboardStats;
+  return data;
 }

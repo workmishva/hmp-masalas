@@ -5,3 +5,5 @@ dist/
 build/
 server/serviceAccountKey.json
 src/config/
+.env.example
+server/.env.example

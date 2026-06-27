@@ -44,14 +44,17 @@ const adminOrderStatusUpdateSchema = z.object({
   status: z.enum(['confirmed', 'processing', 'shipped', 'delivered', 'cancelled']),
 });
 
-function resolvePaymentStatus(order: { paymentMethod: 'upi' | 'whatsapp'; paymentStatus?: 'pending' | 'completed' }) {
-  if (order.paymentStatus === 'pending' || order.paymentStatus === 'completed') {
+function resolvePaymentStatus(order: { paymentMethod: 'upi' | 'whatsapp'; paymentStatus?: 'pending' | 'completed' | 'cancelled'; status?: string }) {
+  if (order.status === 'cancelled') {
+    return 'cancelled';
+  }
+  if (order.paymentStatus === 'pending' || order.paymentStatus === 'completed' || order.paymentStatus === 'cancelled') {
     return order.paymentStatus;
   }
   return order.paymentMethod === 'upi' ? 'completed' : 'pending';
 }
 
-function withResolvedPaymentStatus<T extends { paymentMethod: 'upi' | 'whatsapp'; paymentStatus?: 'pending' | 'completed' }>(
+function withResolvedPaymentStatus<T extends { paymentMethod: 'upi' | 'whatsapp'; paymentStatus?: 'pending' | 'completed' | 'cancelled'; status?: string }>(
   order: T
 ) {
   return {
@@ -169,6 +172,34 @@ export const getOrderById = async (req: Request, res: Response) => {
   }
 };
 
+// Cancel an order (for users exiting WhatsApp checkout without sending)
+export const cancelUserOrder = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user) {
+      return res.status(401).json({ error: 'User is not authenticated' });
+    }
+
+    const orderId = req.params.orderId;
+    
+    // Find the order that belongs to the user and is still in pending_payment status
+    const order = await Order.findOneAndUpdate(
+      { orderId, userId: user.uid, status: 'pending_payment' },
+      { $set: { status: 'cancelled' } },
+      { returnDocument: 'after' }
+    ).lean();
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found or cannot be cancelled' });
+    }
+
+    res.status(200).json({ message: 'Order cancelled successfully', order: withResolvedPaymentStatus(order) });
+  } catch (error) {
+    console.error('Error cancelling order:', error);
+    res.status(500).json({ error: 'Failed to cancel order' });
+  }
+};
+
 // Get all orders for admin dashboard (optional filtering by payment/status)
 export const getAdminOrders = async (req: Request, res: Response) => {
   try {
@@ -268,5 +299,89 @@ export const markWhatsAppPaymentCompletedByAdmin = async (req: Request, res: Res
   } catch (error) {
     console.error('Error marking WhatsApp payment as completed:', error);
     res.status(500).json({ error: 'Failed to mark payment as completed' });
+  }
+};
+
+// Get aggregated dashboard stats for the admin overview
+export const getAdminDashboardStats = async (req: Request, res: Response) => {
+  try {
+    const sinceParam = req.query.since as string | undefined;
+    const sinceDate = sinceParam ? new Date(sinceParam) : undefined;
+    const matchFilter: any = {};
+    if (sinceDate && !isNaN(sinceDate.getTime())) {
+      matchFilter.createdAt = { $gte: sinceDate };
+    }
+
+    const [
+      totalOrders,
+      pendingOrders,
+      revenueResult,
+      uniqueCustomerIds,
+      dailySales,
+      statusBreakdown,
+    ] = await Promise.all([
+      Order.countDocuments(matchFilter),
+      Order.countDocuments({ ...matchFilter, status: { $in: ['pending_payment', 'confirmed', 'processing'] } }),
+      Order.aggregate([
+        { $match: { ...matchFilter, status: { $ne: 'cancelled' } } },
+        { $group: { _id: null, total: { $sum: '$totalAmount' } } },
+      ]),
+      Order.distinct('userId', matchFilter),
+      Order.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: sinceDate && sinceDate.getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000 ? sinceDate : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+            status: { $ne: 'cancelled' },
+          },
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            orders: { $sum: 1 },
+            revenue: { $sum: '$totalAmount' },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]),
+      Order.aggregate([
+        { $match: matchFilter },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const totalRevenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
+
+    // Fill missing days in the last 7 days with zeros
+    const dailySalesMap = new Map(dailySales.map((d: any) => [d._id, d]));
+    const filledDailySales = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      const dateStr = date.toISOString().split('T')[0];
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+      const existing = dailySalesMap.get(dateStr);
+      filledDailySales.push({
+        date: dateStr,
+        day: dayName,
+        orders: existing ? existing.orders : 0,
+        revenue: existing ? existing.revenue : 0,
+      });
+    }
+
+    const statusMap: Record<string, number> = {};
+    statusBreakdown.forEach((s: any) => {
+      statusMap[s._id] = s.count;
+    });
+
+    res.status(200).json({
+      totalOrders,
+      pendingOrders,
+      totalRevenue,
+      totalCustomers: uniqueCustomerIds.length,
+      dailySales: filledDailySales,
+      statusBreakdown: statusMap,
+    });
+  } catch (error) {
+    console.error('Error fetching admin dashboard stats:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard statistics' });
   }
 };

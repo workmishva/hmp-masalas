@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import { useAuth } from './AuthContext';
+import { fetchCart, updateCartApi } from '../services/cartApi';
 
 export interface Product {
   id: string;
@@ -32,8 +34,45 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const isInitialLoad = useRef(true);
+
+  // Load cart from backend when user changes (login/switch)
+  useEffect(() => {
+    if (user?.uid) {
+      isInitialLoad.current = true;
+      fetchCart(user)
+        .then((fetchedItems) => {
+          // Re-hydrate the items cartId
+          const hydrated = fetchedItems.map((item: any) => ({
+            ...item,
+            cartId: `${item.id}-${item.weightId}`,
+          }));
+          setItems(hydrated);
+        })
+        .catch((e) => {
+          console.error('Failed to load cart from backend', e);
+          setItems([]);
+        })
+        .finally(() => {
+          isInitialLoad.current = false;
+        });
+    } else {
+      setItems([]); // No user = empty cart
+    }
+    setIsCartOpen(false);
+  }, [user?.uid]);
+
+  // Persist cart to backend whenever items change (skip initial load)
+  useEffect(() => {
+    if (user?.uid && !isInitialLoad.current) {
+      updateCartApi(user, items).catch((e) => {
+        console.error('Failed to sync cart to backend', e);
+      });
+    }
+  }, [items, user]);
 
   const addToCart = (product: Product, weightId: string, weightPrice: number) => {
     setItems((prev) => {

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { fetchConfig, updateConfigApi } from '../services/configApi';
 
 interface StoreConfig {
   whatsappNumber: string;
@@ -6,11 +7,12 @@ interface StoreConfig {
   storeLongitude: number | null;
   freeShippingRadiusKm: number;
   outsideRadiusShippingCharge: number;
+  upiPayment: boolean;
 }
 
 interface StoreConfigContextType {
   config: StoreConfig;
-  updateConfig: (newConfig: Partial<StoreConfig>) => void;
+  updateConfig: (newConfig: Partial<StoreConfig>) => Promise<void>;
 }
 
 const StoreConfigContext = createContext<StoreConfigContextType | null>(null);
@@ -21,27 +23,32 @@ const DEFAULT_CONFIG: StoreConfig = {
   storeLongitude: null,
   freeShippingRadiusKm: 10,
   outsideRadiusShippingCharge: 50,
+  upiPayment: false,
 };
 
 export function StoreConfigProvider({ children }: { children: ReactNode }) {
-  const [config, setConfig] = useState<StoreConfig>(() => {
-    const saved = localStorage.getItem('storeConfig');
-    if (saved) {
-      try {
-        return { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
-      } catch (e) {
-        return DEFAULT_CONFIG;
-      }
-    }
-    return DEFAULT_CONFIG;
-  });
+  const [config, setConfig] = useState<StoreConfig>(DEFAULT_CONFIG);
 
   useEffect(() => {
-    localStorage.setItem('storeConfig', JSON.stringify(config));
-  }, [config]);
+    const loadConfig = async () => {
+      try {
+        const data = await fetchConfig();
+        setConfig(data);
+      } catch (e) {
+        console.error("Failed to fetch store config from backend", e);
+      }
+    };
+    loadConfig();
+  }, []);
 
-  const updateConfig = (newConfig: Partial<StoreConfig>) => {
-    setConfig((prev) => ({ ...prev, ...newConfig }));
+  const updateConfig = async (newConfig: Partial<StoreConfig>) => {
+    try {
+      const updated = await updateConfigApi(newConfig);
+      setConfig(updated);
+    } catch (e) {
+      console.error("Failed to update store config", e);
+      throw e;
+    }
   };
 
   return (

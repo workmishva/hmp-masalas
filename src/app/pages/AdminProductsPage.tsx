@@ -84,35 +84,46 @@ export default function AdminProductsPage() {
       setDraft((currentDraft) => ({ ...currentDraft, [field]: value }));
     };
 
-  const handleSave = (event: FormEvent<HTMLFormElement>) => {
+  const handleSave = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!draft.name.trim() || draft.price <= 0) return;
 
-    if (activeModal === 'NEW') {
-      addProduct({
-        ...draft,
-        name: draft.name.trim(),
-        image: draft.image.trim(),
-        description: draft.description.trim(),
-        category: draft.category as ProductCategory,
-      });
-    } else if (activeModal) {
-      updateProduct(activeModal.id, {
-        ...draft,
-        name: draft.name.trim(),
-        image: draft.image.trim(),
-        description: draft.description.trim(),
-        category: draft.category as ProductCategory,
-        taxPercent: draft.taxPercent ?? 5,
-      });
+    try {
+      if (activeModal === 'NEW') {
+        await addProduct({
+          ...draft,
+          name: draft.name.trim(),
+          image: draft.image.trim(),
+          description: draft.description.trim(),
+          category: draft.category as ProductCategory,
+        });
+        toast.success('Product created successfully');
+      } else if (activeModal) {
+        await updateProduct(activeModal.id, {
+          ...draft,
+          name: draft.name.trim(),
+          image: draft.image.trim(),
+          description: draft.description.trim(),
+          category: draft.category as ProductCategory,
+          taxPercent: draft.taxPercent ?? 5,
+        });
+        toast.success('Product updated successfully');
+      }
+      closeModal();
+    } catch (e: any) {
+      showErrorToast('Error', e.message || 'Failed to save product');
     }
-    closeModal();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (activeModal && activeModal !== 'NEW') {
-      removeProduct(activeModal.id);
-      closeModal();
+      try {
+        await removeProduct(activeModal.id);
+        toast.success('Product deleted successfully');
+        closeModal();
+      } catch (e: any) {
+        showErrorToast('Error', e.message || 'Failed to delete product');
+      }
     }
   };
 

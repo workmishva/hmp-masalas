@@ -9,5 +9,16 @@ export const images = Object.fromEntries(
 ) as Record<string, string>;
 
 export function getImage(fileName: string) {
-  return images[fileName] ?? images['masala.jpg'] ?? '';
+  // Try WebP first (Adjustment #6)
+  const webpName = fileName.replace(/\.(png|jpe?g)$/i, '.webp');
+  if (images[webpName]) {
+    return images[webpName];
+  }
+
+  // Fallback to original
+  if (images[fileName]) {
+    return images[fileName];
+  }
+
+  return images['masala.webp'] ?? images['masala.jpg'] ?? '';
 }

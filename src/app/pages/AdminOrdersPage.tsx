@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Clock, Package, RefreshCw, Truck, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, Package, RefreshCw, Truck, XCircle, User, Phone, MapPin, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { showErrorToast, showSuccessToast } from '../utils/errorHandler';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { resolveCatalogImage, useProductCatalog } from '../context/ProductCatalogContext';
-import { useAuth } from '../context/AuthContext';
 import {
   AdminOrder,
   AdminPaymentStatus,
@@ -63,11 +62,22 @@ function resolvePaymentStatus(order: AdminOrder): AdminPaymentStatus {
 }
 
 export default function AdminOrdersPage() {
-  const { user } = useAuth();
   const { products } = useProductCatalog();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredOrders = useMemo(() => {
+    if (!searchQuery.trim()) return orders;
+    const query = searchQuery.toLowerCase();
+    return orders.filter((order) => {
+      const matchId = order.orderId.toLowerCase().includes(query);
+      const matchName = order.shippingAddress?.fullName.toLowerCase().includes(query);
+      const matchPhone = order.shippingAddress?.phone.includes(query);
+      return matchId || matchName || matchPhone;
+    });
+  }, [orders, searchQuery]);
 
   const productImageById = useMemo(
     () => new Map(products.map((product) => [product.id, product.image])),
@@ -77,14 +87,14 @@ export default function AdminOrdersPage() {
   const loadOrders = useCallback(async () => {
     setIsLoading(true);
     try {
-      const backendOrders = await fetchAdminOrders(user);
+      const backendOrders = await fetchAdminOrders(null);
       setOrders(backendOrders);
     } catch (error: any) {
       showErrorToast('Load Failed', 'Failed to load orders. Please refresh the page.');
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     loadOrders();
@@ -96,7 +106,7 @@ export default function AdminOrdersPage() {
   ) => {
     setActiveOrderId(orderId);
     try {
-      const updatedOrder = await updateAdminOrderStatus(user, orderId, status);
+      const updatedOrder = await updateAdminOrderStatus(null, orderId, status);
       setOrders((currentOrders) =>
         currentOrders.map((order) => (order.orderId === updatedOrder.orderId ? updatedOrder : order))
       );
@@ -111,7 +121,7 @@ export default function AdminOrdersPage() {
   const markPaymentCompleted = async (orderId: string) => {
     setActiveOrderId(orderId);
     try {
-      const updatedOrder = await markWhatsAppOrderPaymentCompleted(user, orderId);
+      const updatedOrder = await markWhatsAppOrderPaymentCompleted(null, orderId);
       setOrders((currentOrders) =>
         currentOrders.map((order) => (order.orderId === updatedOrder.orderId ? updatedOrder : order))
       );
@@ -143,13 +153,24 @@ export default function AdminOrdersPage() {
         </button>
       </div>
 
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 mt-4 shadow-sm max-w-md">
+        <Search className="text-muted-foreground" size={18} />
+        <input
+          type="text"
+          placeholder="Search by Order ID, name, or phone..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="flex-1 bg-transparent text-sm focus:outline-none text-foreground placeholder-muted-foreground"
+        />
+      </div>
+
       <div className="space-y-4">
-        {!isLoading && orders.length === 0 ? (
+        {!isLoading && filteredOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-[2rem] border border-border border-dashed py-24 text-center">
             <Package size={48} className="mb-4 text-muted-foreground/50" />
-            <h3 className="text-lg font-bold text-foreground">No orders yet</h3>
+            <h3 className="text-lg font-bold text-foreground">No orders found</h3>
             <p className="text-sm text-muted-foreground">
-              Orders from checkout will appear here.
+              Try adjusting your search query.
             </p>
           </div>
         ) : null}
@@ -161,15 +182,16 @@ export default function AdminOrdersPage() {
         ) : null}
 
         {!isLoading
-          ? orders.map((order) => {
+          ? filteredOrders.map((order) => {
               const statusStyle = STATUS_STYLES[order.status] ?? STATUS_STYLES.pending_payment;
               const StatusIcon = statusStyle.icon;
               const paymentStatus = resolvePaymentStatus(order);
-              const canApprove = order.status === 'pending_payment';
-              const canComplete = !['delivered', 'cancelled'].includes(order.status);
-              const canCancel = !['delivered', 'cancelled'].includes(order.status);
+              const isCancelled = order.status === 'cancelled';
+              const canApprove = order.status === 'pending_payment' && !isCancelled;
+              const canComplete = !['delivered', 'cancelled'].includes(order.status) && !isCancelled;
+              const canCancel = !['delivered', 'cancelled'].includes(order.status) && !isCancelled;
               const canMarkPaymentCompleted =
-                order.paymentMethod === 'whatsapp' && paymentStatus !== 'completed';
+                order.paymentMethod === 'whatsapp' && paymentStatus !== 'completed' && !isCancelled;
               const isUpdating = activeOrderId === order.orderId;
 
               return (
@@ -191,10 +213,12 @@ export default function AdminOrdersPage() {
                           className={`rounded-full px-3 py-1 text-xs font-bold ${
                             paymentStatus === 'completed'
                               ? 'bg-emerald-500/10 text-emerald-700'
+                              : paymentStatus === 'cancelled'
+                              ? 'bg-red-500/10 text-red-700'
                               : 'bg-amber-500/10 text-amber-700'
                           }`}
                         >
-                          Payment: {paymentStatus === 'completed' ? 'Completed' : 'Pending'}
+                          Payment: {paymentStatus === 'completed' ? 'Completed' : paymentStatus === 'cancelled' ? 'Cancelled' : 'Pending'}
                         </span>
                       </div>
                       <span className="text-xs text-muted-foreground">
@@ -233,6 +257,32 @@ export default function AdminOrdersPage() {
                       </button>
                     </div>
                   </div>
+
+                  {order.shippingAddress && (
+                    <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl bg-muted/50 p-4 text-sm mt-2 border border-border/50">
+                      <div>
+                        <p className="font-bold text-foreground mb-2">Customer Info</p>
+                        <p className="text-muted-foreground flex items-center gap-1.5 mt-1">
+                          <User size={14} /> {order.shippingAddress.fullName}
+                        </p>
+                        <p className="text-muted-foreground flex items-center gap-1.5 mt-1">
+                          <Phone size={14} /> {order.shippingAddress.phone}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-foreground mb-2">Shipping Address</p>
+                        <div className="text-muted-foreground mt-1 flex items-start gap-1.5">
+                          <MapPin size={14} className="mt-0.5 shrink-0" />
+                          <span>
+                            {order.shippingAddress.house}, {order.shippingAddress.street}
+                            {order.shippingAddress.nearby ? `, Near ${order.shippingAddress.nearby}` : ''} <br/>
+                            {order.shippingAddress.cityVillage}, {order.shippingAddress.district} <br/>
+                            {order.shippingAddress.state}, {order.shippingAddress.country} - {order.shippingAddress.postalCode}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-4">
                     {order.items.map((item, index) => {

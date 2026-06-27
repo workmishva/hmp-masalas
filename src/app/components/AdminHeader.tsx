@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Bell, LogOut, Menu } from 'lucide-react';
+import { Bell, LogOut, Menu, Sun, Moon } from 'lucide-react';
+import { useTheme } from 'next-themes';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
@@ -14,6 +15,12 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -70,6 +77,17 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
             </span>
           )}
         </button>
+
+        {mounted && (
+           <button
+             type="button"
+             onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+             className="relative text-muted-foreground transition hover:text-secondary hidden sm:block"
+             title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
+           >
+             {resolvedTheme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+           </button>
+        )}
 
         <div className="h-6 w-px bg-border"></div>
 

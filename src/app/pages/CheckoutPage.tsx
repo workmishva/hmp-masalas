@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useStoreConfig } from '../context/StoreConfigContext';
-import { useOrders } from '../context/OrderContext';
 import { toast } from 'sonner';
 import { showErrorToast, handleNetworkError } from '../utils/errorHandler';
 import { motion, AnimatePresence } from 'motion/react';
@@ -24,8 +23,8 @@ function calculateDistanceInKm(
   const a =
     Math.sin(deltaLatitude / 2) ** 2 +
     Math.cos(toRadians(from.latitude)) *
-      Math.cos(toRadians(to.latitude)) *
-      Math.sin(deltaLongitude / 2) ** 2;
+    Math.cos(toRadians(to.latitude)) *
+    Math.sin(deltaLongitude / 2) ** 2;
 
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
@@ -34,7 +33,6 @@ export default function CheckoutPage() {
   const { items, setIsCartOpen, updateQuantity, clearCart } = useCart();
   const { user, loading } = useAuth();
   const { config } = useStoreConfig();
-  const { addOrder } = useOrders();
   const navigate = useNavigate();
 
   const [customerInfo, setCustomerInfo] = useState({
@@ -51,14 +49,25 @@ export default function CheckoutPage() {
     postalCode: '',
   });
 
-  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'whatsapp'>('upi');
+  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'whatsapp'>('whatsapp');
   const [upiId, setUpiId] = useState('');
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
-  
-  const [paymentState, setPaymentState] = useState<'idle' | 'awaiting_payment' | 'failed'>('idle');
+
+  const [paymentState, setPaymentState] = useState<'idle' | 'awaiting_payment' | 'failed' | 'awaiting_whatsapp'>('idle');
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+  const [whatsappVerificationCode, setWhatsappVerificationCode] = useState('');
+  const [enteredVerificationCode, setEnteredVerificationCode] = useState('');
+  const [whatsappLink, setWhatsappLink] = useState('');
+  const [finalTotalToPay, setFinalTotalToPay] = useState(0);
   const [paymentTimeLeft, setPaymentTimeLeft] = useState(900);
   const [userCoordinates, setUserCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  useEffect(() => {
+    if (!config.upiPayment && paymentMethod === 'upi') {
+      setPaymentMethod('whatsapp');
+    }
+  }, [config.upiPayment, paymentMethod]);
 
   useEffect(() => {
     let timerId: ReturnType<typeof setInterval>;
@@ -147,9 +156,9 @@ export default function CheckoutPage() {
   const distanceFromStoreKm =
     userCoordinates && hasStoreCoordinates
       ? calculateDistanceInKm(userCoordinates, {
-          latitude: config.storeLatitude as number,
-          longitude: config.storeLongitude as number,
-        })
+        latitude: config.storeLatitude as number,
+        longitude: config.storeLongitude as number,
+      })
       : null;
 
   const shippingCost =
@@ -179,7 +188,7 @@ export default function CheckoutPage() {
 
     try {
       const token = await user.getIdToken();
-      
+
       const orderPayload = {
         items: items.map(item => ({
           id: item.id,
@@ -220,9 +229,12 @@ export default function CheckoutPage() {
         throw new Error(err.error || 'Failed to place order');
       }
 
-      // Log order into local context system for fallback/local UX
-      addOrder(items, totalAmount);
-      clearCart();
+      const orderResponseData = await res.json();
+      setCreatedOrderId(orderResponseData.orderId);
+
+      const genCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      setWhatsappVerificationCode(genCode);
+      setFinalTotalToPay(totalAmount);
 
       // Auto-save this updated address to their Profile
       try {
@@ -255,47 +267,52 @@ export default function CheckoutPage() {
       let message = `Hey! I'm *${customerInfo.firstName} ${customerInfo.surname}* from *${customerInfo.cityVillage}*, and I have checked out your website *HMP Masala*. I would like to order some masalas I've mentioned below.\n\n`;
       message += `📝 *Order Details*\n`;
       message += `───────────────\n`;
-      message += `👤 *Customer:* ${customerInfo.firstName} ${customerInfo.surname}\n`;
-      message += `📱 *Phone:* +91 ${customerInfo.phone}\n`;
-      message += `📍 *Address:*\n`;
-      message += `   House: ${customerInfo.house}\n`;
-      message += `   Street: ${customerInfo.street}\n`;
-      if (customerInfo.nearby) message += `   Nearby: ${customerInfo.nearby}\n`;
-      message += `   City/Village: ${customerInfo.cityVillage}\n`;
-      message += `   District: ${customerInfo.district}\n`;
-      message += `   State: ${customerInfo.state}\n`;
-      message += `   Country: ${customerInfo.country}\n`;
-      message += `   Zipcode: ${customerInfo.postalCode}\n\n`;
+      message += `🔖 *Order ID:* ${orderResponseData.orderId}\n`;
+      message += `🔐 *Verification Code:* ${genCode}\n`;
       message += `───────────────\n`;
-
-      items.forEach((item, index) => {
-        message += `*${index + 1}. ${item.name}*\n`;
-        message += `   Weight: ${item.weightId}\n`;
-        message += `   Qty: ${item.quantity}\n`;
-        if (item.taxPercent && item.taxPercent > 0) {
-           message += `   Tax: ${item.taxPercent}%\n`;
-        }
-        message += `   Price: ₹${(calculateItemFinalPrice(item) * item.quantity).toFixed(2)}\n\n`;
-      });
-
-      message += `───────────────\n`;
-      message += `Subtotal: ₹${subtotal.toFixed(2)}\n`;
-      message += `Tax: ₹${taxTotal.toFixed(2)}${shouldTaxBeIncludedInSubtotal ? ' (included in subtotal)' : ''}\n`;
-      message += `Shipping: ${shippingCost === 0 ? 'FREE' : `₹${shippingCost.toFixed(2)}`}\n`;
       message += `💰 *Total: ₹${totalAmount.toFixed(2)}*\n`;
       message += `💳 *Payment Method: ${paymentMethod === 'upi' ? 'UPI' : 'WhatsApp'}\n`;
 
       const encodedMessage = encodeURIComponent(message);
-      window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, '_blank');
+      setWhatsappLink(`https://wa.me/${phoneNumber}?text=${encodedMessage}`);
 
-      setOrderSuccess(true);
-      setPaymentState('idle');
+      if (paymentMethod === 'whatsapp') {
+        setEnteredVerificationCode('');
+        setPaymentState('awaiting_whatsapp');
+      } else {
+        // For UPI, assume successful immediately or handle separately
+        clearCart();
+        setOrderSuccess(true);
+        setPaymentState('idle');
+      }
     } catch (error: any) {
       handleNetworkError(error, 'Checkout');
       setPaymentState('idle');
     } finally {
       setIsPlacingOrder(false);
     }
+  };
+
+  const handleConfirmWhatsApp = () => {
+    clearCart();
+    setOrderSuccess(true);
+    setPaymentState('idle');
+  };
+
+  const handleCancelWhatsApp = async () => {
+    if (createdOrderId && user) {
+      try {
+        const token = await user.getIdToken();
+        await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/orders/${createdOrderId}/cancel`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } catch (e) {
+        console.error("Failed to cancel order", e);
+      }
+    }
+    setPaymentState('idle');
+    toast.error('Order not placed. You canceled the WhatsApp confirmation.');
   };
 
   const handlePlaceOrderClick = () => {
@@ -308,7 +325,7 @@ export default function CheckoutPage() {
     if (paymentMethod === 'upi') {
       setPaymentState('awaiting_payment');
       setPaymentTimeLeft(900); // 15 minutes timer
-      
+
       // Auto checkout simulate hook
       setTimeout(() => {
         performOrderPlacement();
@@ -342,6 +359,87 @@ export default function CheckoutPage() {
     );
   }
 
+  // Awaiting WhatsApp confirmation screen
+  if (paymentState === 'awaiting_whatsapp') {
+    return (
+      <div className="pt-32 pb-24 px-8 text-center min-h-[calc(100vh-200px)] flex flex-col items-center justify-center">
+        <motion.div
+          initial={{ scale: 0, rotate: -20 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', damping: 10 }}
+          className="text-8xl mb-6 flex items-center justify-center"
+        >
+          💬
+        </motion.div>
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="text-3xl font-bold mb-3 font-['Manrope'] text-stone-900"
+        >
+          Did you send the message?
+        </motion.h2>
+        <motion.p
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="text-stone-500 mb-6 max-w-md mx-auto leading-relaxed"
+        >
+          Click the button below to send your order details via WhatsApp. The message will contain a 6-character Verification Code. Return here and enter it to verify.
+        </motion.p>
+        <motion.a
+          href={whatsappLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.22 }}
+          className="bg-[#25D366] text-white px-8 py-4 mb-6 rounded-lg font-bold hover:bg-[#128C7E] transition-colors shadow-lg flex items-center justify-center gap-2"
+        >
+          <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+          </svg>
+          Send Order on WhatsApp
+        </motion.a>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="mb-8 w-full max-w-xs"
+        >
+          <input
+            type="text"
+            placeholder="Enter 6-char Code"
+            maxLength={6}
+            value={enteredVerificationCode}
+            onChange={(e) => setEnteredVerificationCode(e.target.value.toUpperCase())}
+            className="w-full px-4 py-3 text-center text-xl tracking-widest uppercase font-mono rounded-xl border border-stone-300 focus:border-red-800 focus:ring-2 focus:ring-red-800/20 bg-stone-50 text-stone-900 transition-all outline-none"
+          />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="flex flex-col sm:flex-row gap-4"
+        >
+          <button
+            onClick={handleCancelWhatsApp}
+            className="bg-stone-100 text-stone-600 px-8 py-3 rounded-lg font-bold hover:bg-stone-200 transition-colors shadow-sm order-2 sm:order-1"
+          >
+            No, Cancel Order
+          </button>
+          <button
+            onClick={handleConfirmWhatsApp}
+            disabled={enteredVerificationCode !== whatsappVerificationCode || whatsappVerificationCode === ''}
+            className={`px-8 py-3 rounded-lg font-bold transition-colors shadow-lg order-1 sm:order-2 ${enteredVerificationCode === whatsappVerificationCode && whatsappVerificationCode !== '' ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-stone-200 text-stone-400 cursor-not-allowed'}`}
+          >
+            Verify & Place Order
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
   // Failed payment screen
   if (paymentState === 'failed') {
     return (
@@ -363,10 +461,10 @@ export default function CheckoutPage() {
           Payment Unsuccessful
         </motion.h2>
         <motion.p
-           initial={{ opacity: 0, y: 20 }}
-           animate={{ opacity: 1, y: 0 }}
-           transition={{ delay: 0.2 }}
-           className="text-stone-500 mb-8 max-w-md mx-auto leading-relaxed"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="text-stone-500 mb-8 max-w-md mx-auto leading-relaxed"
         >
           We didn't receive your payment! It seems you ran out of time or cancelled the payment process. Don't worry, you can always try again.
         </motion.p>
@@ -387,9 +485,9 @@ export default function CheckoutPage() {
   if (paymentState === 'awaiting_payment') {
     return (
       <div className="pt-24 pb-16 px-4 sm:px-6 max-w-4xl mx-auto min-h-[calc(100vh-200px)] flex flex-col items-center justify-center">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }} 
-          animate={{ opacity: 1, y: 0 }} 
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           className="bg-white p-6 md:p-10 rounded-3xl shadow-2xl border border-stone-200 w-full"
         >
           <div className="text-center mb-8">
@@ -419,15 +517,15 @@ export default function CheckoutPage() {
               <p className="font-extrabold text-2xl text-stone-900 mb-1">₹{totalAmount.toFixed(2)}</p>
               <p className="text-sm font-medium text-stone-500 uppercase tracking-widest">SCAN TO PAY</p>
             </div>
-            
+
             {/* Right Buttons Side */}
             <div className="flex flex-col gap-4">
               <h3 className="font-bold text-stone-900 mb-2">Popular UPI Apps</h3>
-              
+
               <button onClick={performOrderPlacement} className="flex items-center gap-4 w-full p-4 border-2 border-[#00B9F1] text-[#00B9F1] rounded-xl font-bold hover:bg-[#00B9F1]/10 transition-all hover:-translate-y-1">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12.91 14.814l-1.026 3.195H9.606l2.128-6.602h2.247l1.458 4.54a5.35 5.35 0 0 1-1.025-1.135h-1.503z" />
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/>
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" />
                   <text x="12" y="16" fontSize="10" textAnchor="middle" fontWeight="bold">Pay</text>
                 </svg>
                 Pay via Paytm
@@ -436,7 +534,7 @@ export default function CheckoutPage() {
               <button onClick={performOrderPlacement} className="flex items-center gap-4 w-full p-4 border-2 border-[#5F259F] text-[#5F259F] rounded-xl font-bold hover:bg-[#5F259F]/10 transition-all hover:-translate-y-1">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M15.42 12.38" />
-                  <rect x="2" y="2" width="20" height="20" rx="4" stroke="currentColor" strokeWidth="2" fill="none"/>
+                  <rect x="2" y="2" width="20" height="20" rx="4" stroke="currentColor" strokeWidth="2" fill="none" />
                   <text x="12" y="16" fontSize="10" textAnchor="middle" fontWeight="bold">Pe</text>
                 </svg>
                 Pay via PhonePe
@@ -451,7 +549,7 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              <input 
+              <input
                 type="text"
                 placeholder="e.g. name@bank or 9876543210@upi"
                 className="w-full p-4 rounded-xl border border-stone-300 focus:border-red-800 focus:ring-2 focus:ring-red-800/20 outline-none text-center font-medium bg-stone-50"
@@ -461,15 +559,15 @@ export default function CheckoutPage() {
 
           <div className="flex flex-col items-center justify-center border-t border-stone-100 pt-8 mt-4">
             {isPlacingOrder ? (
-               <div className="flex flex-col items-center gap-3">
-                 <div className="w-8 h-8 border-4 border-red-800 border-t-transparent rounded-full animate-spin" />
-                 <p className="font-bold text-red-800 animate-pulse">Processing Payment...</p>
-               </div>
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-4 border-red-800 border-t-transparent rounded-full animate-spin" />
+                <p className="font-bold text-red-800 animate-pulse">Processing Payment...</p>
+              </div>
             ) : (
-               <div className="flex items-center gap-3 text-stone-500">
-                 <div className="w-5 h-5 border-2 border-stone-300 border-t-stone-600 rounded-full animate-spin" />
-                 <p className="font-medium animate-pulse">Loading secure checkout confirmation... you will be redirected shortly.</p>
-               </div>
+              <div className="flex items-center gap-3 text-stone-500">
+                <div className="w-5 h-5 border-2 border-stone-300 border-t-stone-600 rounded-full animate-spin" />
+                <p className="font-medium animate-pulse">Loading secure checkout confirmation... you will be redirected shortly.</p>
+              </div>
             )}
             <button onClick={() => setPaymentState('idle')} className="mt-6 px-6 py-2 text-sm text-stone-400 hover:text-stone-800 underline transition-colors">Cancel Checkout</button>
           </div>
@@ -516,7 +614,7 @@ export default function CheckoutPage() {
           transition={{ delay: 0.4 }}
           className="text-2xl font-extrabold text-red-800 mb-8"
         >
-          Total: ₹{totalAmount.toFixed(2)}
+          Total: ₹{finalTotalToPay.toFixed(2)}
         </motion.p>
         <motion.button
           initial={{ opacity: 0, y: 20 }}
@@ -631,7 +729,7 @@ export default function CheckoutPage() {
                   placeholder="Street / Society"
                 />
               </div>
-              
+
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium mb-1.5 text-stone-600">Nearby (Optional)</label>
                 <input
@@ -666,7 +764,7 @@ export default function CheckoutPage() {
                   placeholder="District"
                 />
               </div>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:col-span-2">
                 <div>
                   <label className="block text-sm font-medium mb-1.5 text-stone-600">State *</label>
@@ -717,41 +815,43 @@ export default function CheckoutPage() {
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* UPI Payment Option */}
-              <label
-                className={`relative flex flex-col p-5 cursor-pointer rounded-xl border-2 transition-all duration-200 ${paymentMethod === 'upi'
+              {config.upiPayment && (
+                <label
+                  className={`relative flex flex-col p-5 cursor-pointer rounded-xl border-2 transition-all duration-200 ${paymentMethod === 'upi'
                     ? 'border-red-800 bg-red-50/60 shadow-md shadow-red-800/5'
                     : 'border-stone-200 bg-stone-50 hover:border-stone-300'
-                  }`}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="upi"
-                    checked={paymentMethod === 'upi'}
-                    onChange={() => setPaymentMethod('upi')}
-                    className="h-4 w-4 text-red-800 border-stone-300 focus:ring-red-800"
-                  />
-                  <svg className="w-6 h-6 text-red-800 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                  </svg>
-                  <span className="font-bold text-stone-900 w-full">UPI Payment</span>
-                </div>
-                <p className="text-xs text-stone-500 ml-7 mt-1">Pay securely using any UPI app — Google Pay, PhonePe, Paytm, etc.</p>
-                {paymentMethod === 'upi' && (
-                  <div className="absolute top-3 right-3 bg-white rounded-full shadow-sm">
-                    <svg className="w-5 h-5 text-red-800 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    }`}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="upi"
+                      checked={paymentMethod === 'upi'}
+                      onChange={() => setPaymentMethod('upi')}
+                      className="h-4 w-4 text-red-800 border-stone-300 focus:ring-red-800"
+                    />
+                    <svg className="w-6 h-6 text-red-800 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                     </svg>
+                    <span className="font-bold text-stone-900 w-full">UPI Payment</span>
                   </div>
-                )}
-              </label>
+                  <p className="text-xs text-stone-500 ml-7 mt-1">Pay securely using any UPI app — Google Pay, PhonePe, Paytm, etc.</p>
+                  {paymentMethod === 'upi' && (
+                    <div className="absolute top-3 right-3 bg-white rounded-full shadow-sm">
+                      <svg className="w-5 h-5 text-red-800 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  )}
+                </label>
+              )}
 
               {/* WhatsApp Checkout Option */}
               <label
                 className={`relative flex flex-col p-5 cursor-pointer rounded-xl border-2 transition-all duration-200 ${paymentMethod === 'whatsapp'
-                    ? 'border-green-600 bg-green-50/60 shadow-md shadow-green-600/5'
-                    : 'border-stone-200 bg-stone-50 hover:border-stone-300'
+                  ? 'border-green-600 bg-green-50/60 shadow-md shadow-green-600/5'
+                  : 'border-stone-200 bg-stone-50 hover:border-stone-300'
                   }`}
               >
                 <div className="flex items-center gap-3 mb-3">
@@ -781,7 +881,7 @@ export default function CheckoutPage() {
 
             {/* UPI Details (conditionally shown) */}
             <AnimatePresence>
-              {paymentMethod === 'upi' && (
+              {config.upiPayment && paymentMethod === 'upi' && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -790,13 +890,13 @@ export default function CheckoutPage() {
                   className="overflow-hidden"
                 >
                   <div className="mt-4 p-5 bg-stone-50 rounded-xl border border-stone-200">
-                     <p className="text-sm text-stone-600">
-                       After clicking "Place Order", you will be securely redirected to our payment page where you can pay easily via:<br/>
-                       <span className="font-bold text-stone-800 mt-2 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-red-800"></span> Scan QR Code</span>
-                       <span className="font-bold text-stone-800 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-red-800"></span> Paytm</span>
-                       <span className="font-bold text-stone-800 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-red-800"></span> PhonePe</span>
-                       <span className="font-bold text-stone-800 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-red-800"></span> Other UPI ID Manually</span>
-                     </p>
+                    <p className="text-sm text-stone-600">
+                      After clicking "Place Order", you will be securely redirected to our payment page where you can pay easily via:<br />
+                      <span className="font-bold text-stone-800 mt-2 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-red-800"></span> Scan QR Code</span>
+                      <span className="font-bold text-stone-800 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-red-800"></span> Paytm</span>
+                      <span className="font-bold text-stone-800 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-red-800"></span> PhonePe</span>
+                      <span className="font-bold text-stone-800 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-red-800"></span> Other UPI ID Manually</span>
+                    </p>
                   </div>
                 </motion.div>
               )}
@@ -828,7 +928,7 @@ export default function CheckoutPage() {
                         ) : null}
                       </h4>
                       <p className="text-xs text-stone-500 mt-0.5">{item.weightId}</p>
-                      
+
                       <div className="flex items-center gap-2 mt-2 w-max bg-white px-2 py-1 rounded-md border border-stone-200 shadow-sm">
                         <button
                           onClick={() => updateQuantity(item.cartId, item.quantity - 1)}
@@ -903,8 +1003,8 @@ export default function CheckoutPage() {
                   onClick={handlePlaceOrderClick}
                   disabled={isPlacingOrder}
                   className={`w-full mt-4 py-4 rounded-xl font-bold text-lg transition-all shadow-md active:scale-[0.98] transform flex items-center justify-center gap-2.5 ${paymentMethod === 'whatsapp'
-                      ? 'bg-green-600 hover:bg-green-700 text-white shadow-green-600/20'
-                      : 'bg-red-800 hover:bg-red-700 text-white shadow-red-800/20'
+                    ? 'bg-green-600 hover:bg-green-700 text-white shadow-green-600/20'
+                    : 'bg-red-800 hover:bg-red-700 text-white shadow-red-800/20'
                     } ${isPlacingOrder ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
                   {isPlacingOrder ? (
@@ -935,7 +1035,7 @@ export default function CheckoutPage() {
 
             {/* Secure Badge */}
             <div className="flex items-center justify-center gap-2 text-stone-400 text-xs">
-              <span className="material-symbols-outlined text-green-600 text-base">verified_user</span>
+              {/*<span className="material-symbols-outlined text-green-600 text-base">verified_user</span>*/}
               <span>Secure 256-bit SSL encrypted checkout</span>
             </div>
           </div>

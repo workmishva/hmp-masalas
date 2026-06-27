@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useStoreConfig } from '../context/StoreConfigContext';
-import { Save, Phone, MapPin, Truck } from 'lucide-react';
+import { Save, Phone, MapPin, Truck, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { showErrorToast } from '../utils/errorHandler';
+import { useTheme } from 'next-themes';
+import { Sun, Moon } from 'lucide-react';
 
 export default function AdminSettingsPage() {
   const { config, updateConfig } = useStoreConfig();
@@ -13,9 +15,16 @@ export default function AdminSettingsPage() {
   const [outsideRadiusShippingCharge, setOutsideRadiusShippingCharge] = useState(
     config.outsideRadiusShippingCharge.toString()
   );
+  const [upiPayment, setUpiPayment] = useState(config.upiPayment);
   const [success, setSuccess] = useState(false);
+  const { theme, setTheme, resolvedTheme } = useTheme();
 
-  const handleSave = (e: React.FormEvent) => {
+  const [mounted, setMounted] = useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsedLatitude = storeLatitude.trim() === '' ? null : Number(storeLatitude);
     const parsedLongitude = storeLongitude.trim() === '' ? null : Number(storeLongitude);
@@ -39,15 +48,20 @@ export default function AdminSettingsPage() {
       return;
     }
 
-    updateConfig({
-      whatsappNumber,
-      storeLatitude: parsedLatitude,
-      storeLongitude: parsedLongitude,
-      freeShippingRadiusKm: parsedRadius,
-      outsideRadiusShippingCharge: parsedOutsideCharge,
-    });
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
+    try {
+      await updateConfig({
+        whatsappNumber,
+        storeLatitude: parsedLatitude,
+        storeLongitude: parsedLongitude,
+        freeShippingRadiusKm: parsedRadius,
+        outsideRadiusShippingCharge: parsedOutsideCharge,
+        upiPayment,
+      });
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (e: any) {
+      showErrorToast('Error', e.message || 'Failed to update store settings');
+    }
   };
 
   return (
@@ -61,14 +75,14 @@ export default function AdminSettingsPage() {
         <h2 className="mb-6 text-xl font-bold flex items-center gap-2 text-foreground">
           <Phone className="text-secondary" /> Contact Details
         </h2>
-        
+
         <form onSubmit={handleSave} className="space-y-6">
           <div>
             <label className="mb-2 block text-sm font-semibold text-foreground">
               WhatsApp Business Number
             </label>
             <p className="mb-4 text-xs text-muted-foreground">
-              Enter your number with the country code (e.g. 917984904156 for India). This number receives all checkout orders.
+              Enter your number with the country code (e.g. +91 98765 43210 for India). This number receives all checkout orders.
             </p>
             <input
               type="text"
@@ -139,6 +153,83 @@ export default function AdminSettingsPage() {
                 />
               </div>
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-background p-4 sm:p-5">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-foreground">
+              <span className="text-secondary opacity-70 border border-secondary px-1 text-[10px] rounded leading-none py-1">UPI</span> Payment Features
+            </h3>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Toggle the UPI payment option visibility on the checkout page. Keep it off if you only want WhatsApp orders for now.
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setUpiPayment(!upiPayment)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  upiPayment ? 'bg-primary' : 'bg-muted'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    upiPayment ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className="text-sm font-semibold text-foreground">
+                {upiPayment ? 'UPI Checkout Enabled' : 'UPI Checkout Disabled'}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-background p-4 sm:p-5">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-foreground">
+              {resolvedTheme === 'dark' ? <Moon size={16} className="text-secondary" /> : <Sun size={16} className="text-secondary" />} Appearance Settings
+            </h3>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Choose your preferred theme for the admin dashboard. (Automatically updates)
+            </p>
+            <div>
+              {mounted && (
+                <button
+                  type="button"
+                  onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+                  className="relative inline-flex h-11 w-[102px] items-center rounded-full border border-border bg-muted p-1 shadow-sm transition-colors"
+                >
+                  <span
+                    className={`absolute inset-y-1 left-1 w-[42px] rounded-full bg-card shadow transition-transform duration-300 ${resolvedTheme === 'dark' ? 'translate-x-[52px]' : 'translate-x-0'
+                      }`}
+                  />
+                  <span className={`relative z-10 flex w-1/2 justify-center transition-colors ${resolvedTheme === 'dark' ? 'text-muted-foreground' : 'text-amber-500'}`}>
+                    <Sun size={16} />
+                  </span>
+                  <span className={`relative z-10 flex w-1/2 justify-center transition-colors ${resolvedTheme === 'dark' ? 'text-foreground' : 'text-muted-foreground'}`}>
+                    <Moon size={16} />
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-border bg-background p-4 sm:p-5">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-foreground">
+              <RotateCcw size={16} className="text-destructive" /> Data Management
+            </h3>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Clear previous dashboard metrics and chart values. New data will begin collecting from today.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Are you sure you want to reset dashboard data? This will clear all visible metrics and charts until new data arrives.')) {
+                  localStorage.setItem('adminDashboardResetAt', new Date().toISOString());
+                  toast.success('Dashboard data reset successfully.');
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-xl bg-destructive/10 px-4 py-2 text-sm font-bold text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"
+            >
+              <RotateCcw size={16} />
+              Reset Dashboard Data
+            </button>
           </div>
 
           <div className="flex items-center gap-4 border-t border-border pt-6">
