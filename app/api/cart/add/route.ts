@@ -39,11 +39,34 @@ export async function POST(req: Request) {
       cart = new Cart({ userId: session.user.id, items: [] })
     }
 
+    let resolvedWeight = weight
+    let itemPrice = 0
+    let itemDeliveryCharge = 0
+    let itemTaxPercent = 0
+
+    // Find the variant
+    let variant = weight ? product.weights?.find(w => w.weight === weight) : null
+    if (!variant) {
+      // Fallback to default active variant
+      variant = product.weights?.find(w => w.isDefault && w.isActive !== false) ?? product.weights?.find(w => w.isActive !== false)
+      if (variant) {
+        resolvedWeight = variant.weight
+      }
+    }
+
+    if (variant) {
+      itemPrice = variant.price
+      itemDeliveryCharge = variant.deliveryCharge ?? 0
+      itemTaxPercent = variant.tax ?? 0
+    }
+
+    const calculatedTaxAmount = itemPrice * (itemTaxPercent / 100)
+
     // Same product in a different weight = separate cart line
     const existing = cart.items.find(
       (i) =>
         i.productId.toString() === productId &&
-        (i.weight ?? undefined) === (weight ?? undefined)
+        (i.weight ?? undefined) === (resolvedWeight ?? undefined)
     )
 
     if (existing) {
@@ -52,11 +75,22 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: `Only ${product.stock} in stock` }, { status: 400 })
       }
       existing.qty = newQty
+      // Keep price, deliveryCharge, and tax updated just in case
+      existing.weightPrice = itemPrice
+      existing.deliveryCharge = itemDeliveryCharge
+      existing.tax = calculatedTaxAmount
     } else {
       if (qty > product.stock) {
         return NextResponse.json({ error: `Only ${product.stock} in stock` }, { status: 400 })
       }
-      cart.items.push({ productId: product._id, qty, weight, weightPrice } as never)
+      cart.items.push({
+        productId: product._id,
+        qty,
+        weight: resolvedWeight,
+        weightPrice: itemPrice,
+        deliveryCharge: itemDeliveryCharge,
+        tax: calculatedTaxAmount,
+      } as never)
     }
 
     await cart.save()

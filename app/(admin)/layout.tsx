@@ -17,11 +17,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <ThemeToggle className="text-masala-400 dark:text-masala-600" />
         </div>
         <AdminNav />
-        <div className="px-6 py-4 border-t border-masala-800 dark:border-masala-300">
-          <Link href="/" className="text-xs text-masala-500 hover:text-masala-300 dark:hover:text-masala-700 transition-colors">
-            ← Back to Store
-          </Link>
-        </div>
       </aside>
 
       {/* Main content */}

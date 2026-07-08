@@ -30,13 +30,15 @@ export interface IProductWeight {
   subtitle?:  string
   isDefault?: boolean
   isActive?:  boolean
+  deliveryCharge?: number
+  tax?: number
+  description?: string
 }
 
 export interface IProduct {
   _id: string
   name: string
   description: string
-  price: number
   stock: number
   category: string
   images: string[]
@@ -49,6 +51,10 @@ export interface IProduct {
 export interface ICartItem {
   productId: string | IProduct
   qty: number
+  weight?: string
+  weightPrice?: number
+  deliveryCharge?: number
+  tax?: number
 }
 
 export interface ICart {
@@ -73,12 +79,17 @@ export interface IOrderItem {
   price: number
   qty: number
   weight?: string
+  deliveryCharge?: number
+  tax?: number
 }
 
 export interface IOrder {
   _id: string
   userId: string
   items: IOrderItem[]
+  productsPriceTotal: number
+  deliveryTotal: number
+  taxTotal: number
   totalAmount: number
   deliveryAddress: string
   verificationCode: string

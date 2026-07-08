@@ -7,7 +7,6 @@ import Product from '@/models/Product'
 const updateSchema = z.object({
   name:        z.string().min(2).optional(),
   description: z.string().min(10).optional(),
-  price:       z.number().min(0).optional(),
   stock:       z.number().min(0).optional(),
   category:    z.string().min(2).optional(),
   images:      z.array(z.string()).optional(),
@@ -19,6 +18,9 @@ const updateSchema = z.object({
     subtitle:  z.string().optional().default(''),
     isDefault: z.boolean().optional().default(false),
     isActive:  z.boolean().optional().default(true),
+    deliveryCharge: z.number().min(0).optional().default(0),
+    tax:         z.number().min(0).max(100).optional().default(0),
+    description: z.string().optional().default(''),
   })).optional(),
 })
 

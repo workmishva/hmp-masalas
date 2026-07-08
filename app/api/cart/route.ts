@@ -13,11 +13,11 @@ export async function GET() {
     // Lazily expire pending checkout data older than 48 h
     await Cart.updateOne(
       { userId: session.user.id, pendingExpiry: { $lt: new Date() } },
-      { $unset: { pendingCode: '', pendingAddress: '', pendingExpiry: '', pendingTotal: '' } },
+      { $unset: { pendingCode: '', pendingAddress: '', pendingExpiry: '', pendingTotal: '', pendingProductsPriceTotal: '', pendingDeliveryTotal: '', pendingTaxTotal: '' } },
     )
 
     const cart = await Cart.findOne({ userId: session.user.id })
-      .populate('items.productId', 'name price images stock isActive category')
+      .populate('items.productId', 'name images stock isActive category weights')
       .lean()
 
     return NextResponse.json({ data: cart ?? { items: [] } })

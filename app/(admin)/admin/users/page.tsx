@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { format } from 'date-fns'
 import { Users, Trash2, X, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -164,7 +165,15 @@ export default function AdminUsersPage() {
       <div className="space-y-5">
         <div className="flex items-center justify-between">
           <h1 className="font-heading text-2xl font-bold text-masala-900">Customers</h1>
-          <span className="text-sm text-masala-500">{users.length} registered</span>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-masala-200 bg-white dark:bg-masala-100 text-sm font-medium text-masala-700 hover:bg-masala-50 dark:hover:bg-masala-200 transition-colors"
+            >
+              ← Back to Store
+            </Link>
+            <span className="text-sm text-masala-500">{users.length} registered</span>
+          </div>
         </div>
 
         <input

@@ -11,10 +11,10 @@ import { useCart } from '@/context/CartContext'
 interface CartProduct {
   _id: string
   name: string
-  price: number
   images: string[]
   stock: number
   category: string
+  weights?: any[]
 }
 
 interface CartItem {
@@ -22,6 +22,8 @@ interface CartItem {
   qty:         number
   weight?:     string
   weightPrice?: number
+  deliveryCharge?: number
+  tax?: number
 }
 
 interface CartData {
@@ -110,9 +112,26 @@ export default function CartPage() {
     )
   }
 
-  const items    = cart?.items ?? []
-  const subtotal = items.reduce((sum, item) => sum + (item.weightPrice ?? item.productId.price) * item.qty, 0)
+  const items = cart?.items ?? []
   const totalQty = items.reduce((sum, item) => sum + item.qty, 0)
+
+  let productsPriceTotal = 0
+  let deliveryTotal = 0
+  let taxTotal = 0
+
+  items.forEach((item) => {
+    const variant = item.productId.weights?.find(w => w.weight === item.weight) ?? item.productId.weights?.find(w => w.isDefault && w.isActive !== false) ?? item.productId.weights?.find(w => w.isActive !== false)
+    const unitPrice = variant ? variant.price : (item.weightPrice ?? 0)
+    const unitDelivery = variant ? (variant.deliveryCharge ?? 0) : (item.deliveryCharge ?? 0)
+    const taxPercent = variant ? (variant.tax ?? 0) : 0
+    const unitTax = unitPrice * (taxPercent / 100)
+
+    productsPriceTotal += unitPrice * item.qty
+    deliveryTotal += unitDelivery * item.qty
+    taxTotal += unitTax * item.qty
+  })
+
+  const finalTotal = productsPriceTotal + deliveryTotal + taxTotal
 
   if (items.length === 0) {
     return (
@@ -138,7 +157,13 @@ export default function CartPage() {
             const p          = item.productId
             const key        = itemKey(item)
             const isUpdating = updating === key
-            const unitPrice  = item.weightPrice ?? p.price
+            const variant = p.weights?.find(w => w.weight === item.weight) ?? p.weights?.find(w => w.isDefault && w.isActive !== false) ?? p.weights?.find(w => w.isActive !== false)
+            const unitPrice = variant ? variant.price : (item.weightPrice ?? 0)
+            const unitDelivery = variant ? (variant.deliveryCharge ?? 0) : (item.deliveryCharge ?? 0)
+            const taxPercent = variant ? (variant.tax ?? 0) : 0
+            const unitTax = unitPrice * (taxPercent / 100)
+            const productUnitTotal = unitPrice + unitTax
+            const productLineTotal = productUnitTotal * item.qty
 
             return (
               <div
@@ -178,10 +203,17 @@ export default function CartPage() {
                       >
                         {p.name}
                       </Link>
-                      <p className="text-xs text-masala-500 mt-0.5">₹{unitPrice.toLocaleString('en-IN')} each</p>
+                      <div className="text-xs text-masala-500 mt-0.5">
+                        <span>₹{productUnitTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} each</span>
+                        {unitTax > 0 && (
+                          <span className="text-[10px] text-masala-400 block font-normal">
+                            (Base: ₹{unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} + Tax: ₹{unitTax.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="font-bold text-chili-600 text-lg shrink-0">
-                      ₹{(unitPrice * item.qty).toLocaleString('en-IN')}
+                      ₹{productLineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
 
@@ -228,17 +260,23 @@ export default function CartPage() {
 
             <div className="space-y-2.5 mb-5">
               <div className="flex justify-between text-sm text-masala-600">
-                <span>Subtotal ({totalQty} {totalQty === 1 ? 'item' : 'items'})</span>
-                <span>₹{subtotal.toLocaleString('en-IN')}</span>
+                <span>Products Price Total ({totalQty} {totalQty === 1 ? 'item' : 'items'})</span>
+                <span>₹{productsPriceTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between text-sm text-masala-600">
-                <span>Delivery</span>
-                <span className="text-cardamom-600 font-medium">Free</span>
+                <span>Tax Total</span>
+                <span>₹{taxTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex justify-between text-sm text-masala-600">
+                <span>Delivery Total</span>
+                <span className={deliveryTotal > 0 ? 'text-masala-600' : 'text-cardamom-600 font-medium'}>
+                  {deliveryTotal > 0 ? `₹${deliveryTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Free'}
+                </span>
               </div>
               <hr className="border-masala-200" />
               <div className="flex justify-between font-bold text-masala-900">
-                <span>Total</span>
-                <span className="text-chili-600 text-xl">₹{subtotal.toLocaleString('en-IN')}</span>
+                <span>Grand Total</span>
+                <span className="text-chili-600 text-xl">₹{finalTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
 

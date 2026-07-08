@@ -280,33 +280,68 @@ export default function MyOrdersPage() {
 
                   {/* Items */}
                   <div className="pt-4 space-y-2">
-                    {order.items.map((item, i) => (
-                      <div key={i} className="flex items-center justify-between text-sm gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-masala-700 truncate">{item.name}</span>
-                          {item.weight && (
-                            <span className="text-xs font-medium text-saffron-600 bg-saffron-50 border border-saffron-200 rounded-full px-1.5 py-0.5 shrink-0">
-                              {item.weight}
-                            </span>
-                          )}
-                          <span className="text-masala-500 shrink-0">× {item.qty}</span>
+                    {order.items.map((item, i) => {
+                      const unitPrice = item.price
+                      const unitTax = item.tax ?? 0
+                      const unitDelivery = item.deliveryCharge ?? 0
+                      const productUnitTotal = unitPrice + unitTax
+                      const productLineTotal = productUnitTotal * item.qty
+
+                      return (
+                        <div key={i} className="flex items-center justify-between text-sm gap-3">
+                          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                            <span className="text-masala-700 truncate">{item.name}</span>
+                            {item.weight && (
+                              <span className="text-xs font-medium text-saffron-600 bg-saffron-50 border border-saffron-200 rounded-full px-1.5 py-0.5 shrink-0">
+                                {item.weight}
+                              </span>
+                            )}
+                            <span className="text-masala-500 shrink-0">× {item.qty}</span>
+                            {unitTax > 0 && (
+                              <span className="text-[10px] text-masala-400 font-normal">
+                                (Includes ₹{(unitTax * item.qty).toLocaleString('en-IN')} Tax)
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-masala-900 font-medium">₹{productLineTotal.toLocaleString('en-IN')}</span>
+                            {order.status === 'Delivered' && (
+                              <Link
+                                href={`/products/${item.productId}#reviews`}
+                                className="text-xs text-saffron-600 hover:text-saffron-700 font-semibold underline-offset-2 hover:underline transition-colors"
+                              >
+                                Review
+                              </Link>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-masala-900 font-medium">₹{(item.price * item.qty).toLocaleString('en-IN')}</span>
-                          {order.status === 'Delivered' && (
-                            <Link
-                              href={`/products/${item.productId}#reviews`}
-                              className="text-xs text-saffron-600 hover:text-saffron-700 font-semibold underline-offset-2 hover:underline transition-colors"
-                            >
-                              Review
-                            </Link>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
 
                   <hr className="my-3 border-masala-100" />
+
+                  {/* Order Totals Breakout */}
+                  <div className="text-xs text-masala-600 space-y-1 mb-4 bg-masala-50 dark:bg-masala-200/40 p-3.5 rounded-xl">
+                    <div className="flex justify-between">
+                      <span>Products Price Total:</span>
+                      <span className="font-semibold text-masala-900">₹{(order.productsPriceTotal ?? order.totalAmount).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Tax Total:</span>
+                      <span className="font-semibold text-masala-900">₹{(order.taxTotal ?? 0).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Delivery Total:</span>
+                      <span className="font-semibold text-masala-900">
+                        {(order.deliveryTotal ?? 0) > 0 ? `₹${(order.deliveryTotal ?? 0).toLocaleString('en-IN')}` : 'Free'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t border-masala-200 pt-1.5 font-bold text-sm text-masala-950">
+                      <span>Final Total:</span>
+                      <span className="text-chili-600">₹{order.totalAmount.toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
 
                   {/* Delivery address */}
                   <div className="text-sm text-masala-600 mb-4">

@@ -16,23 +16,24 @@ interface ProductFormProps {
 }
 
 interface WeightRow {
-  weight:    string
-  price:     string   // editable; empty = use auto-computed on submit
-  subtitle:  string
-  isDefault: boolean
-  isActive:  boolean
+  weight:         string
+  price:          string
+  deliveryCharge: string
+  tax:            string
+  description:    string
+  isDefault:      boolean
+  isActive:       boolean
 }
 
 interface FormState {
-  name:        string
-  description: string
-  price:       string
-  stock:       string
-  category:    string
-  images:      string[]
-  weights:     WeightRow[]
-  isActive:    boolean
-  isFeatured:  boolean
+  name:           string
+  description:    string
+  stock:          string
+  category:       string
+  images:         string[]
+  weights:        WeightRow[]
+  isActive:       boolean
+  isFeatured:     boolean
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -138,16 +139,17 @@ export function ProductForm({ product, onSuccess, onCancel, onDelete }: ProductF
   const [form, setForm] = useState<FormState>({
     name:        product?.name        ?? '',
     description: product?.description ?? '',
-    price:       product?.price       != null ? String(product.price) : '',
     stock:       product?.stock       != null ? String(product.stock) : '',
     category:    product?.category    ?? PRODUCT_CATEGORIES[0],
     images:      product?.images      ?? [],
     weights:     product?.weights?.map(w => ({
-      weight:    w.weight,
-      price:     w.price != null ? String(w.price) : '',
-      subtitle:  w.subtitle  ?? '',
-      isDefault: w.isDefault ?? false,
-      isActive:  w.isActive  ?? true,
+      weight:         w.weight,
+      price:          w.price != null ? String(w.price) : '',
+      deliveryCharge: w.deliveryCharge != null ? String(w.deliveryCharge) : '0',
+      tax:            w.tax != null ? String(w.tax) : '0',
+      description:    w.description ?? w.subtitle ?? '',
+      isDefault:      w.isDefault ?? false,
+      isActive:       w.isActive  ?? true,
     })) ?? [],
     isActive:    product?.isActive    ?? true,
     isFeatured:  product?.isFeatured  ?? false,
@@ -164,15 +166,16 @@ export function ProductForm({ product, onSuccess, onCancel, onDelete }: ProductF
 
   const addPreset = (p: typeof WEIGHT_PRESETS[0]) => {
     if (form.weights.some(w => w.weight === p.label)) return
-    const computed = computeWeightPrice(p.label, Number(form.price) || 0)
     setForm(f => ({
       ...f,
       weights: [...f.weights, {
-        weight:    p.label,
-        price:     computed !== null ? String(computed) : '',
-        subtitle:  p.subtitle,
-        isDefault: f.weights.length === 0,
-        isActive:  true,
+        weight:         p.label,
+        price:          '',
+        deliveryCharge: '0',
+        tax:            '0',
+        description:    p.subtitle,
+        isDefault:      f.weights.length === 0,
+        isActive:       true,
       }],
     }))
   }
@@ -180,20 +183,22 @@ export function ProductForm({ product, onSuccess, onCancel, onDelete }: ProductF
   const addCustom = () =>
     setForm(f => ({
       ...f,
-      weights: [...f.weights, { weight: '', price: '', subtitle: '', isDefault: f.weights.length === 0, isActive: true }],
+      weights: [...f.weights, {
+        weight:         '',
+        price:          '',
+        deliveryCharge: '0',
+        tax:            '0',
+        description:    '',
+        isDefault:      f.weights.length === 0,
+        isActive:       true,
+      }],
     }))
 
   const updateRow = (i: number, field: keyof WeightRow, val: string | boolean) =>
     setForm(f => {
       const next = f.weights.map((w, idx) => {
         if (idx !== i) return w
-        const updated = { ...w, [field]: val }
-        // Auto-recompute price when weight label changes (so "250g" → correct price)
-        if (field === 'weight' && typeof val === 'string') {
-          const computed = computeWeightPrice(val, Number(f.price) || 0)
-          if (computed !== null) updated.price = String(computed)
-        }
-        return updated
+        return { ...w, [field]: val }
       })
       return { ...f, weights: next }
     })
@@ -215,12 +220,41 @@ export function ProductForm({ product, onSuccess, onCancel, onDelete }: ProductF
     const e: typeof errors = {}
     if (!form.name.trim() || form.name.length < 2)             e.name = 'Name must be at least 2 characters'
     if (!form.description.trim() || form.description.length < 10) e.description = 'Description must be at least 10 characters'
-    if (!form.price || isNaN(Number(form.price)) || Number(form.price) < 0) e.price = 'Enter a valid price'
     if (!form.stock || isNaN(Number(form.stock)) || Number(form.stock) < 0) e.stock = 'Enter a valid stock quantity'
     if (!form.category) e.category = 'Select a category'
-    if (form.weights.some(w => !w.weight.trim())) e.weightRows = 'All weight fields must have a label (e.g. 100g)'
-    const labels = form.weights.map(w => w.weight.trim()).filter(Boolean)
-    if (new Set(labels).size !== labels.length) e.weightRows = 'Duplicate weight labels are not allowed'
+
+    if (form.weights.length === 0) {
+      e.weightRows = 'At least one weight variant is required'
+    } else {
+      if (form.weights.some(w => !w.weight.trim())) {
+        e.weightRows = 'All weight fields must have a label (e.g. 100g)'
+      } else {
+        const labels = form.weights.map(w => w.weight.trim()).filter(Boolean)
+        if (new Set(labels).size !== labels.length) {
+          e.weightRows = 'Duplicate weight labels are not allowed'
+        } else {
+          for (const w of form.weights) {
+            if (!w.price || isNaN(Number(w.price)) || Number(w.price) < 0) {
+              e.weightRows = `Enter a valid price for variant "${w.weight}"`
+              break
+            }
+            if (w.deliveryCharge && (isNaN(Number(w.deliveryCharge)) || Number(w.deliveryCharge) < 0)) {
+              e.weightRows = `Enter a valid delivery charge for variant "${w.weight}"`
+              break
+            }
+            if (w.tax && (isNaN(Number(w.tax)) || Number(w.tax) < 0 || Number(w.tax) > 100)) {
+              e.weightRows = `Enter a valid tax percentage (0-100) for variant "${w.weight}"`
+              break
+            }
+          }
+        }
+      }
+
+      if (!e.weightRows && !form.weights.some(w => w.isDefault && w.isActive !== false)) {
+        e.weightRows = 'One active weight variant must be marked as default'
+      }
+    }
+
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -251,19 +285,18 @@ export function ProductForm({ product, onSuccess, onCancel, onDelete }: ProductF
     if (!validate()) return
     setSaving(true)
     try {
-      const basePrice = Number(form.price)
-
       const builtWeights = form.weights
         .filter(w => w.weight.trim())
         .map(w => {
-          const manualPrice = Number(w.price)
-          const autoPrice   = computeWeightPrice(w.weight.trim(), basePrice)
           return {
-            weight:    w.weight.trim(),
-            price:     manualPrice > 0 ? manualPrice : (autoPrice ?? basePrice),
-            subtitle:  w.subtitle.trim(),
-            isDefault: w.isDefault,
-            isActive:  w.isActive,
+            weight:         w.weight.trim(),
+            price:          Number(w.price) || 0,
+            deliveryCharge: Number(w.deliveryCharge) || 0,
+            tax:            Number(w.tax) || 0,
+            subtitle:       w.description.trim(), // for backward compatibility
+            description:    w.description.trim(),
+            isDefault:      w.isDefault,
+            isActive:       w.isActive,
           }
         })
 
@@ -274,15 +307,14 @@ export function ProductForm({ product, onSuccess, onCancel, onDelete }: ProductF
       }
 
       const payload = {
-        name:        form.name.trim(),
-        description: form.description.trim(),
-        price:       basePrice,
-        stock:       Number(form.stock),
-        category:    form.category,
-        images:      form.images,
-        weights:     builtWeights,
-        isActive:    form.isActive,
-        isFeatured:  form.isFeatured,
+        name:           form.name.trim(),
+        description:    form.description.trim(),
+        stock:          Number(form.stock),
+        category:       form.category,
+        images:         form.images,
+        weights:        builtWeights,
+        isActive:       form.isActive,
+        isFeatured:     form.isFeatured,
       }
 
       const res  = await fetch(
@@ -300,8 +332,6 @@ export function ProductForm({ product, onSuccess, onCancel, onDelete }: ProductF
       setSaving(false)
     }
   }
-
-  const basePrice = Number(form.price) || 0
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -330,20 +360,9 @@ export function ProductForm({ product, onSuccess, onCancel, onDelete }: ProductF
           </select>
         </Field>
 
-        <SectionLabel label="Pricing & Stock" />
+        <SectionLabel label="Stock" />
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field
-            label="Base Price (₹)" required error={errors.price}
-            hint={!errors.price ? (form.weights.length > 0 ? '= price per 100g · weights scale from this' : 'Shown when no weight variants') : undefined}
-          >
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-masala-400 text-sm pointer-events-none">₹</span>
-              <input type="number" min="0" step="0.01" value={form.price} onChange={e => set('price', e.target.value)}
-                placeholder="0" className={`${inputCls(errors.price)} pl-8`} />
-            </div>
-          </Field>
-
+        <div className="max-w-xs">
           <Field label="Stock (units)" required error={errors.stock}>
             <input type="number" min="0" value={form.stock} onChange={e => set('stock', e.target.value)}
               placeholder="0" className={inputCls(errors.stock)} />
@@ -384,15 +403,12 @@ export function ProductForm({ product, onSuccess, onCancel, onDelete }: ProductF
           {/* Weight rows */}
           {form.weights.length === 0 && (
             <p className="text-xs text-masala-400 italic">
-              No variants — customers will see the base price only.
+              No weight variants configured yet.
             </p>
           )}
 
           <div className="space-y-2.5">
             {form.weights.map((row, i) => {
-              const computed    = computeWeightPrice(row.weight, basePrice)
-              const manualPrice = Number(row.price)
-              const isCustom    = manualPrice > 0 && computed !== null && manualPrice !== computed
               return (
                 <div
                   key={i}
@@ -404,8 +420,8 @@ export function ProductForm({ product, onSuccess, onCancel, onDelete }: ProductF
                         : 'border-masala-200 bg-white'
                   }`}
                 >
-                  {/* Row header: weight | price | subtitle | remove */}
-                  <div className="grid grid-cols-[90px_90px_1fr_auto] gap-2 items-start">
+                  {/* Row header: weight | price | delivery | tax | description | remove */}
+                  <div className="grid grid-cols-2 sm:grid-cols-[90px_110px_110px_90px_1fr_auto] gap-2 items-start">
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-masala-400 uppercase tracking-wider">Weight</p>
                       <input
@@ -418,31 +434,57 @@ export function ProductForm({ product, onSuccess, onCancel, onDelete }: ProductF
 
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-masala-400 uppercase tracking-wider">
-                        Price {isCustom && <span className="text-saffron-500 normal-case">(custom)</span>}
+                        Product Price
                       </p>
                       <div className="relative">
                         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-masala-400 text-xs pointer-events-none">₹</span>
                         <input
-                          type="number" min="0" value={row.price}
+                          type="number" min="0" step="any" value={row.price}
                           onChange={e => updateRow(i, 'price', e.target.value)}
-                          placeholder={computed !== null ? String(computed) : '—'}
+                          placeholder="0"
                           className="w-full rounded-xl border border-masala-200 bg-masala-50 pl-5 pr-2 py-2 text-sm font-bold text-masala-900 placeholder:text-masala-400 focus:outline-none focus:border-saffron-500 focus:bg-white transition-all"
                         />
                       </div>
                     </div>
 
                     <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-masala-400 uppercase tracking-wider">Subtitle / Usage</p>
+                      <p className="text-[10px] font-bold text-masala-400 uppercase tracking-wider">Delivery (₹)</p>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-masala-400 text-xs pointer-events-none">₹</span>
+                        <input
+                          type="number" min="0" step="any" value={row.deliveryCharge}
+                          onChange={e => updateRow(i, 'deliveryCharge', e.target.value)}
+                          placeholder="0"
+                          className="w-full rounded-xl border border-masala-200 bg-masala-50 pl-5 pr-2 py-2 text-sm font-bold text-masala-900 placeholder:text-masala-400 focus:outline-none focus:border-saffron-500 focus:bg-white transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-masala-400 uppercase tracking-wider">Tax (%)</p>
+                      <div className="relative">
+                        <input
+                          type="number" min="0" max="100" step="any" value={row.tax}
+                          onChange={e => updateRow(i, 'tax', e.target.value)}
+                          placeholder="0"
+                          className="w-full rounded-xl border border-masala-200 bg-masala-50 pl-3 pr-6 py-2 text-sm font-bold text-masala-900 placeholder:text-masala-400 focus:outline-none focus:border-saffron-500 focus:bg-white transition-all"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-masala-400 text-xs font-bold pointer-events-none">%</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 col-span-2 sm:col-span-1">
+                      <p className="text-[10px] font-bold text-masala-400 uppercase tracking-wider">Description (optional)</p>
                       <input
-                        type="text" value={row.subtitle}
-                        onChange={e => updateRow(i, 'subtitle', e.target.value)}
+                        type="text" value={row.description}
+                        onChange={e => updateRow(i, 'description', e.target.value)}
                         placeholder="e.g. Popular choice"
                         className="w-full rounded-xl border border-masala-200 bg-masala-50 px-3 py-2 text-sm text-masala-700 placeholder:text-masala-400 focus:outline-none focus:border-saffron-500 focus:bg-white transition-all"
                       />
                     </div>
 
                     <button type="button" onClick={() => removeRow(i)}
-                      className="mt-5 w-7 h-7 flex items-center justify-center rounded-lg text-masala-400 hover:text-chili-600 hover:bg-chili-50 transition-colors"
+                      className="mt-5 w-7 h-7 flex items-center justify-center rounded-lg text-masala-400 hover:text-chili-600 hover:bg-chili-50 transition-colors col-span-2 sm:col-span-1 justify-self-end sm:justify-self-auto"
                       aria-label="Remove weight variant">
                       <X className="w-4 h-4" />
                     </button>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { MessageCircle, Save, Settings2, AlertTriangle, Download, Trash2, X, Palette } from 'lucide-react'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
@@ -208,7 +209,7 @@ export default function AdminSettingsPage() {
   if (!settings) return null
 
   return (
-    <>
+    <div className="space-y-6">
       {showReset && (
         <ResetModal
           onConfirm={handleReset}
@@ -217,8 +218,17 @@ export default function AdminSettingsPage() {
         />
       )}
 
-      <div className="max-w-lg space-y-6">
+      <div className="flex items-center justify-between">
         <h1 className="font-heading text-2xl font-bold text-masala-900">Settings</h1>
+        <Link
+          href="/"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl border border-masala-200 bg-white dark:bg-masala-100 text-sm font-medium text-masala-700 hover:bg-masala-50 dark:hover:bg-masala-200 transition-colors"
+        >
+          ← Back to Store
+        </Link>
+      </div>
+
+      <div className="max-w-lg space-y-6">
 
         {/* WhatsApp */}
         <div className="bg-white dark:bg-masala-100 border border-masala-200 rounded-2xl p-5 shadow-card">
@@ -355,6 +365,6 @@ export default function AdminSettingsPage() {
           </button>
         </div>
       </div>
-    </>
+    </div>
   )
 }

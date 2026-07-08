@@ -27,21 +27,39 @@ export async function POST(req: Request) {
     await connectDB()
 
     const cart = await Cart.findOne({ userId: session.user.id })
-      .populate('items.productId', 'name price stock isActive')
+      .populate('items.productId', 'name stock isActive weights')
 
     if (!cart || !cart.items.length) {
       return NextResponse.json({ error: 'Your cart is empty' }, { status: 400 })
     }
 
     // Validate stock without decrementing (decrement happens at confirm)
-    let totalAmount = 0
+    let productsPriceTotal = 0
+    let deliveryTotal = 0
+    let taxTotal = 0
 
     for (const item of cart.items) {
       const product = item.productId as unknown as {
-        _id: { toString(): string }; name: string; price: number; stock: number; isActive: boolean
+        _id: { toString(): string }; name: string; stock: number; isActive: boolean; weights?: any[]
       }
-      const cartItem       = item as unknown as { weightPrice?: number; weight?: string }
-      const effectivePrice = cartItem.weightPrice ?? product.price
+      const cartItem       = item as unknown as { weightPrice?: number; weight?: string; deliveryCharge?: number; tax?: number }
+      
+      let effectivePrice = 0
+      let itemDeliveryCharge = 0
+      let itemTaxPercent = 0
+
+      // Match current product model state from DB
+      let variant = cartItem.weight ? product.weights?.find(w => w.weight === cartItem.weight) : null
+      if (!variant) {
+        // Fallback to default variant
+        variant = product.weights?.find(w => w.isDefault && w.isActive !== false) ?? product.weights?.find(w => w.isActive !== false)
+      }
+
+      if (variant) {
+        effectivePrice = variant.price
+        itemDeliveryCharge = variant.deliveryCharge ?? 0
+        itemTaxPercent = variant.tax ?? 0
+      }
 
       if (!product?.isActive) {
         return NextResponse.json({ error: 'A product in your cart is no longer available' }, { status: 400 })
@@ -53,8 +71,14 @@ export async function POST(req: Request) {
         )
       }
 
-      totalAmount += effectivePrice * item.qty
+      const calculatedTaxAmount = effectivePrice * (itemTaxPercent / 100)
+
+      productsPriceTotal += effectivePrice * item.qty
+      deliveryTotal += itemDeliveryCharge * item.qty
+      taxTotal += calculatedTaxAmount * item.qty
     }
+
+    const totalAmount = productsPriceTotal + deliveryTotal + taxTotal
 
     // Generate friendly order code and set 48-hour expiry
     const verificationCode = generateOrderCode()
@@ -69,6 +93,9 @@ export async function POST(req: Request) {
           pendingAddress: deliveryAddress,
           pendingExpiry,
           pendingTotal:   totalAmount,
+          pendingProductsPriceTotal: productsPriceTotal,
+          pendingDeliveryTotal:      deliveryTotal,
+          pendingTaxTotal:           taxTotal,
         },
       },
     )
@@ -76,10 +103,15 @@ export async function POST(req: Request) {
     // Build WhatsApp URL
     const settings    = await Settings.findOne().lean()
     const whatsappNum = settings?.whatsappNumber ?? process.env.WHATSAPP_NUMBER ?? ''
-    const whatsappUrl = buildWhatsAppUrl(whatsappNum, verificationCode)
+    const whatsappUrl = buildWhatsAppUrl(whatsappNum, verificationCode, {
+      productsPriceTotal,
+      taxTotal,
+      deliveryTotal,
+      grandTotal: totalAmount,
+    })
 
     return NextResponse.json({
-      data: { verificationCode, whatsappUrl, totalAmount },
+      data: { verificationCode, whatsappUrl, totalAmount, productsPriceTotal, deliveryTotal, taxTotal },
     })
   } catch {
     return NextResponse.json({ error: 'Failed to place order' }, { status: 500 })

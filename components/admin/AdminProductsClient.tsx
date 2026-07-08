@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Plus, Pencil, Trash2, X } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -133,10 +134,18 @@ export function AdminProductsClient({ initialProducts }: AdminProductsClientProp
           <h1 className="font-heading text-2xl font-bold text-masala-900">Products</h1>
           <p className="text-sm text-masala-500 mt-0.5">{products.length} total products</p>
         </div>
-        <Button onClick={openAdd} className="gap-2 w-full sm:w-auto">
-          <Plus className="w-4 h-4" />
-          Add Product
-        </Button>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <Link
+            href="/"
+            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-masala-200 bg-white dark:bg-masala-100 text-sm font-medium text-masala-700 hover:bg-masala-50 dark:hover:bg-masala-200 transition-colors w-full sm:w-auto"
+          >
+            ← Back to Store
+          </Link>
+          <Button onClick={openAdd} className="gap-2 w-full sm:w-auto">
+            <Plus className="w-4 h-4" />
+            Add Product
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
@@ -198,7 +207,12 @@ export function AdminProductsClient({ initialProducts }: AdminProductsClientProp
 
                     <td className="px-4 py-3 text-masala-600 hidden sm:table-cell">{product.category}</td>
 
-                    <td className="px-4 py-3 font-semibold text-masala-900">₹{product.price}</td>
+                    <td className="px-4 py-3 font-semibold text-masala-900">
+                      {(() => {
+                        const defaultWeight = product.weights?.find(w => w.isDefault && w.isActive !== false) ?? product.weights?.find(w => w.isActive !== false)
+                        return defaultWeight ? `₹${defaultWeight.price.toLocaleString('en-IN')}` : '—'
+                      })()}
+                    </td>
 
                     <td className="px-4 py-3 hidden md:table-cell">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${stockColor(product.stock)}`}>

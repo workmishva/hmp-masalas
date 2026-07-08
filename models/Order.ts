@@ -7,11 +7,16 @@ interface OrderItemSubdoc {
   price: number
   qty: number
   weight?: string
+  deliveryCharge?: number
+  tax?: number
 }
 
 export interface OrderDocument extends Document {
   userId: mongoose.Types.ObjectId
   items: OrderItemSubdoc[]
+  productsPriceTotal: number
+  deliveryTotal: number
+  taxTotal: number
   totalAmount: number
   deliveryAddress: string
   verificationCode: string
@@ -30,6 +35,8 @@ const OrderItemSchema = new Schema<OrderItemSubdoc>(
     price:     { type: Number, required: true },
     qty:       { type: Number, required: true, min: 1 },
     weight:    { type: String },
+    deliveryCharge: { type: Number, default: 0 },
+    tax:       { type: Number, default: 0 },
   },
   { _id: false }
 )
@@ -38,6 +45,9 @@ const OrderSchema = new Schema<OrderDocument>(
   {
     userId:           { type: Schema.Types.ObjectId, ref: 'User', required: false },
     items:            [OrderItemSchema],
+    productsPriceTotal: { type: Number, required: true, default: 0 },
+    deliveryTotal:    { type: Number, required: true, default: 0 },
+    taxTotal:         { type: Number, required: true, default: 0 },
     totalAmount:      { type: Number, required: true, min: 0 },
     deliveryAddress:  { type: String, required: true },
     verificationCode: { type: String, required: true },

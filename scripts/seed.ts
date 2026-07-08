@@ -79,38 +79,46 @@ async function seed() {
       {
         name:        'Garam Masala',
         description: 'A warm and aromatic blend of whole spices, freshly ground in small batches. Perfect for curries, rice dishes, and marinades.',
-        price:       149,
         stock:       50,
         category:    'Garam Masala',
         images:      [],
         isActive:    true,
+        weights: [
+          { weight: '250g', price: 149, deliveryCharge: 0, tax: 5, isDefault: true, isActive: true, description: 'Popular choice' }
+        ]
       },
       {
         name:        'Chai Masala',
         description: 'A fragrant spice blend made for the perfect cup of masala chai. Notes of cardamom, ginger, cinnamon, and clove.',
-        price:       99,
         stock:       75,
         category:    'Chai Masala',
         images:      [],
         isActive:    true,
+        weights: [
+          { weight: '250g', price: 99, deliveryCharge: 0, tax: 5, isDefault: true, isActive: true, description: 'Popular choice' }
+        ]
       },
       {
         name:        'Biryani Masala',
         description: 'Rich, bold, and layered spice mix crafted specifically for aromatic biryani. Family recipe passed down through generations.',
-        price:       179,
         stock:       30,
         category:    'Biryani Masala',
         images:      [],
         isActive:    true,
+        weights: [
+          { weight: '250g', price: 179, deliveryCharge: 0, tax: 5, isDefault: true, isActive: true, description: 'Popular choice' }
+        ]
       },
       {
         name:        'Pav Bhaji Masala',
         description: 'Tangy and bold spice blend that brings the authentic street food flavor of Mumbai to your kitchen.',
-        price:       89,
         stock:       60,
         category:    'Pav Bhaji Masala',
         images:      [],
         isActive:    true,
+        weights: [
+          { weight: '250g', price: 89, deliveryCharge: 0, tax: 5, isDefault: true, isActive: true, description: 'Popular choice' }
+        ]
       },
     ])
     console.log('Sample products created')

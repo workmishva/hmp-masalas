@@ -79,8 +79,33 @@ export function ProductCard({ product, priority = false, index = 0 }: ProductCar
 
           <div className="flex items-center justify-between border-t border-masala-100 pt-3">
             <div className="flex flex-col">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-masala-400">Price</span>
-              <span className="text-xl font-black text-chili-600">₹{product.price}</span>
+              {(() => {
+                const defaultWeight = product.weights?.find(w => w.isDefault && w.isActive !== false) ?? product.weights?.find(w => w.isActive !== false)
+                const displayPrice = defaultWeight ? defaultWeight.price : 0
+                const displayTaxPercent = defaultWeight ? (defaultWeight.tax ?? 0) : 0
+                const displayTaxAmount = displayPrice * (displayTaxPercent / 100)
+                const displayTotal = displayPrice + displayTaxAmount
+                return (
+                  <>
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-masala-400">
+                      Price
+                    </span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xl font-black text-chili-600">
+                        ₹{displayTotal.toLocaleString('en-IN')}
+                      </span>
+                      {defaultWeight && (
+                        <span className="text-xs text-masala-400 font-medium">
+                          {defaultWeight.weight}
+                        </span>
+                      )}
+                    </div>
+                    {displayTaxAmount > 0 && (
+                      <span className="text-[9px] text-masala-400 block font-normal">(Includes ₹{displayTaxAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })} Tax)</span>
+                    )}
+                  </>
+                )
+              })()}
             </div>
             {product.stock > 10 ? (
               <span className="flex items-center gap-1.5 text-xs text-cardamom-600 font-semibold">

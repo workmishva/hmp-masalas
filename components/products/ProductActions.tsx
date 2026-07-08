@@ -10,13 +10,12 @@ import type { IProductWeight } from '@/types'
 interface ProductActionsProps {
   productId:   string
   productName: string
-  basePrice:   number
   maxStock:    number
   weights?:    IProductWeight[]
 }
 
 export function ProductActions({
-  productId, productName, basePrice, maxStock, weights = [],
+  productId, productName, maxStock, weights = [],
 }: ProductActionsProps) {
   const { refresh } = useCart()
 
@@ -30,7 +29,11 @@ export function ProductActions({
   const [qty, setQty]         = useState(1)
   const [loading, setLoading] = useState(false)
 
-  const displayPrice = selectedWeight ? selectedWeight.price : basePrice
+  const displayPrice = selectedWeight ? selectedWeight.price : 0
+  const selectedTaxPercent = selectedWeight ? (selectedWeight.tax ?? 0) : 0
+  const selectedTaxAmount = displayPrice * (selectedTaxPercent / 100)
+  const selectedDelivery = selectedWeight ? (selectedWeight.deliveryCharge ?? 0) : 0
+  const productTotal = displayPrice + selectedTaxAmount
 
   const handleAddToCart = async () => {
     setLoading(true)
@@ -74,12 +77,26 @@ export function ProductActions({
 
   // ── Price display ───────────────────────────────────────────────────────────
   const priceDisplay = (
-    <div className="flex items-baseline gap-2.5 mb-6">
-      <span className="text-4xl font-black text-chili-600 tabular-nums">
-        ₹{displayPrice.toLocaleString('en-IN')}
-      </span>
-      {selectedWeight && (
-        <span className="text-sm text-masala-400 font-medium">for {selectedWeight.weight}</span>
+    <div className="flex flex-col gap-1 mb-6">
+      <div className="flex items-baseline gap-2.5">
+        <span className="text-4xl font-black text-chili-600 tabular-nums">
+          ₹{productTotal.toLocaleString('en-IN')}
+        </span>
+        {selectedWeight && (
+          <span className="text-sm text-masala-400 font-medium">for {selectedWeight.weight}</span>
+        )}
+      </div>
+      {(selectedTaxAmount > 0 || selectedDelivery > 0) && (
+        <div className="flex flex-wrap gap-x-3 text-xs text-masala-500 font-medium">
+          {selectedTaxAmount > 0 && (
+            <span>(₹{displayPrice.toLocaleString('en-IN')} + ₹{selectedTaxAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })} Tax)</span>
+          )}
+          {selectedDelivery > 0 ? (
+            <span>+ ₹{selectedDelivery.toLocaleString('en-IN')} Delivery</span>
+          ) : (
+            <span className="text-cardamom-600 font-semibold">Free Delivery</span>
+          )}
+        </div>
       )}
     </div>
   )
@@ -90,6 +107,8 @@ export function ProductActions({
   if (activeWeights.length === 1) {
     // Single option — display as a static info pill, no selection needed
     const w = activeWeights[0]
+    const optTaxAmount = w.price * ((w.tax ?? 0) / 100)
+    const optTotal = w.price + optTaxAmount
     weightUI = (
       <div className="mb-6">
         <p className="text-[11px] font-bold text-masala-400 uppercase tracking-widest mb-2.5">Weight</p>
@@ -103,7 +122,10 @@ export function ProductActions({
               <p className="text-xs text-masala-400 leading-tight mt-0.5">{w.subtitle}</p>
             )}
           </div>
-          <span className="ml-1 text-sm font-bold text-chili-600">₹{w.price.toLocaleString('en-IN')}</span>
+          <span className="ml-1 text-sm font-bold text-chili-600">
+            ₹{optTotal.toLocaleString('en-IN')}
+            {optTaxAmount > 0 && <span className="text-[10px] text-masala-400 block font-normal">(Includes ₹{optTaxAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })} Tax)</span>}
+          </span>
         </div>
       </div>
     )
@@ -121,6 +143,8 @@ export function ProductActions({
         <div className={`grid gap-2.5 ${gridClass}`}>
           {activeWeights.map(opt => {
             const isSelected = selectedWeight?.weight === opt.weight
+            const optTaxAmount = opt.price * ((opt.tax ?? 0) / 100)
+            const optTotal = opt.price + optTaxAmount
             return (
               <button
                 key={opt.weight}
@@ -160,7 +184,8 @@ export function ProductActions({
                 <span className={`text-sm font-bold mt-0.5 transition-colors ${
                   isSelected ? 'text-chili-600' : 'text-masala-600'
                 }`}>
-                  ₹{opt.price.toLocaleString('en-IN')}
+                  ₹{optTotal.toLocaleString('en-IN')}
+                  {optTaxAmount > 0 && <span className="text-[9px] text-masala-400 block font-normal">(Includes ₹{optTaxAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })} Tax)</span>}
                 </span>
               </button>
             )
@@ -224,7 +249,7 @@ export function ProductActions({
           {qtyControls(true)}
           <Button onClick={handleAddToCart} loading={loading} size="lg" className="flex-1 gap-2 rounded-2xl">
             <ShoppingCart className="w-4 h-4" />
-            Add — ₹{(displayPrice * qty).toLocaleString('en-IN')}
+            Add — ₹{((productTotal + selectedDelivery) * qty).toLocaleString('en-IN')}
           </Button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { format } from 'date-fns'
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -87,7 +88,15 @@ export default function AdminOrdersPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="font-heading text-2xl font-bold text-masala-900">Orders</h1>
-        <span className="text-sm text-masala-500">{filtered.length} of {orders.length}</span>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-masala-200 bg-white dark:bg-masala-100 text-sm font-medium text-masala-700 hover:bg-masala-50 dark:hover:bg-masala-200 transition-colors"
+          >
+            ← Back to Store
+          </Link>
+          <span className="text-sm text-masala-500">{filtered.length} of {orders.length}</span>
+        </div>
       </div>
 
       {/* Search */}
@@ -186,20 +195,53 @@ export default function AdminOrdersPage() {
 
                     {/* Items */}
                     <div className="space-y-1.5">
-                      {order.items.map((item, i) => (
-                        <div key={i} className="flex justify-between text-sm gap-3">
-                          <span className="text-masala-700">
-                            {item.name}
-                            {item.weight && (
-                              <span className="ml-1.5 text-xs font-medium text-saffron-600 bg-saffron-50 border border-saffron-200 rounded-full px-1.5 py-0.5">
-                                {item.weight}
-                              </span>
-                            )}
-                            {' '}× {item.qty}
-                          </span>
-                          <span className="text-masala-900 font-medium shrink-0">₹{(item.price * item.qty).toLocaleString('en-IN')}</span>
-                        </div>
-                      ))}
+                      {order.items.map((item, i) => {
+                        const unitPrice = item.price
+                        const unitTax = item.tax ?? 0
+                        const productUnitTotal = unitPrice + unitTax
+                        const productLineTotal = productUnitTotal * item.qty
+                        return (
+                          <div key={i} className="flex justify-between text-sm gap-3">
+                            <span className="text-masala-700">
+                              {item.name}
+                              {item.weight && (
+                                <span className="ml-1.5 text-xs font-medium text-saffron-600 bg-saffron-50 border border-saffron-200 rounded-full px-1.5 py-0.5">
+                                  {item.weight}
+                                </span>
+                              )}
+                              {' '}× {item.qty}
+                              {unitTax > 0 && (
+                                <span className="ml-1.5 text-[10px] text-masala-400 font-normal">
+                                  (Includes ₹{(unitTax * item.qty).toLocaleString('en-IN')} Tax)
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-masala-900 font-medium shrink-0">₹{productLineTotal.toLocaleString('en-IN')}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Order Totals Breakout */}
+                    <div className="text-xs text-masala-600 space-y-1 bg-masala-50 p-3 rounded-xl max-w-sm">
+                      <div className="flex justify-between">
+                        <span>Products Price Total:</span>
+                        <span className="font-semibold text-masala-900">₹{(order.productsPriceTotal ?? order.totalAmount).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Tax Total:</span>
+                        <span className="font-semibold text-masala-900">₹{(order.taxTotal ?? 0).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Delivery Total:</span>
+                        <span className="font-semibold text-masala-900">
+                          {(order.deliveryTotal ?? 0) > 0 ? `₹${(order.deliveryTotal ?? 0).toLocaleString('en-IN')}` : 'Free'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-t border-masala-200 pt-1.5 font-bold text-sm text-masala-950">
+                        <span>Final Total:</span>
+                        <span className="text-chili-600">₹{order.totalAmount.toLocaleString('en-IN')}</span>
+                      </div>
                     </div>
 
                     <div className="text-sm text-masala-600">

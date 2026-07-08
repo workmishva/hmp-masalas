@@ -8,6 +8,7 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
 import { GoogleSignInButton } from '@/components/ui/GoogleSignInButton'
+import { EmailSignInButton } from '@/components/ui/EmailSignInButton'
 
 export function LoginForm() {
   const router       = useRouter()
@@ -146,6 +147,20 @@ export function LoginForm() {
               )}
             </button>
           </form>
+
+          {/* Email sign-in divider + button */}
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center" aria-hidden="true">
+              <div className="w-full border-t border-masala-200" />
+            </div>
+            <div className="relative flex justify-center">
+              <span className="bg-white dark:bg-masala-100 px-3 text-xs font-medium text-masala-400 uppercase tracking-wider">
+                or
+              </span>
+            </div>
+          </div>
+
+          <EmailSignInButton email={email} label="Continue with Email" />
 
           {/* Divider */}
           <div className="relative my-5">

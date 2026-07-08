@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import Image from 'next/image'
 import { format } from 'date-fns'
 import {
@@ -214,6 +215,12 @@ function ProductsGridView() {
             {loading ? '…' : `${products.length} product${products.length !== 1 ? 's' : ''} with reviews`}
           </p>
         </div>
+        <Link
+          href="/"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl border border-masala-200 bg-white dark:bg-masala-100 text-sm font-medium text-masala-700 hover:bg-masala-50 dark:hover:bg-masala-200 transition-colors"
+        >
+          ← Back to Store
+        </Link>
       </div>
 
       {/* Search */}

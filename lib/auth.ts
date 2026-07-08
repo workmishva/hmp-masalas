@@ -82,5 +82,48 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
       },
     }),
+
+    // ── Email link via Firebase ──────────────────────────────────
+    Credentials({
+      id: 'firebase-email-link',
+      credentials: {
+        idToken: { label: 'Firebase ID Token', type: 'text' },
+      },
+      async authorize(credentials) {
+        const idToken = credentials?.idToken as string | undefined
+        if (!idToken) return null
+
+        const { verifyFirebaseToken } = await import('@/lib/firebase-admin')
+        const decoded = await verifyFirebaseToken(idToken)
+        if (!decoded?.email) return null
+
+        await connectDB()
+
+        let user = await User.findOne({ email: decoded.email.toLowerCase() })
+
+        if (!user) {
+          // First sign-in with this email — create account
+          const nameParts = (decoded.name ?? decoded.email.split('@')[0]).split(' ')
+          user = await User.create({
+            name:             decoded.name ?? nameParts[0],
+            email:            decoded.email.toLowerCase(),
+            phone:            '',
+            // No googleId for email link sign in
+            firstName:        nameParts[0] ?? '',
+            lastName:         nameParts.slice(1).join(' ') ?? '',
+            role:             'enduser',
+            profileCompleted: false,
+          })
+        }
+        // If user exists, we just sign them in.
+
+        return {
+          id:    user._id.toString(),
+          name:  user.name,
+          email: user.email,
+          role:  (user.role as string),
+        }
+      },
+    }),
   ],
 })

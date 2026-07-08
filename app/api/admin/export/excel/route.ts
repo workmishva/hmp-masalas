@@ -1,7 +1,7 @@
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
-import { format } from 'date-fns'
+import { formatIST } from '@/lib/formatDate'
 import { auth } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import Order from '@/models/Order'
@@ -35,12 +35,12 @@ export async function GET() {
         totalAmount:      o.totalAmount,
         deliveryAddress:  o.deliveryAddress,
         status:           o.status,
-        placedAt:         format(new Date(o.createdAt), 'dd MMM yyyy HH:mm'),
+        placedAt:         formatIST(o.createdAt, 'dd MMM yyyy HH:mm'),
       }
     })
 
     const buffer = generateOrdersExcelBuffer(rows)
-    const filename = `hmp-orders-${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+    const filename = `hmp-orders-${formatIST(new Date(), 'yyyy-MM-dd', true)}.xlsx`
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,

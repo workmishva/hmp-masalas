@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { format } from 'date-fns'
+import { formatIST } from '@/lib/formatDate'
 
 export interface ReportData {
   generatedAt:     Date
@@ -47,7 +47,7 @@ export function generateResetReportPDF(data: ReportData): Buffer {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)
   doc.text('Business Data Report  |  Pre-Reset Summary', 14, 24)
-  doc.text(`Generated: ${format(data.generatedAt, 'dd MMM yyyy, HH:mm')}`, 196, 24, { align: 'right' })
+  doc.text(`Generated: ${formatIST(data.generatedAt, 'dd MMM yyyy, HH:mm')}`, 196, 24, { align: 'right' })
 
   // ── REPORT PERIOD ─────────────────────────────────────────────────────────
   doc.setTextColor(...DARK)
@@ -58,8 +58,8 @@ export function generateResetReportPDF(data: ReportData): Buffer {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)
   doc.setTextColor(...MUTED)
-  const from = data.periodFrom ? format(data.periodFrom, 'dd MMM yyyy') : 'Inception'
-  const to   = format(data.periodTo, 'dd MMM yyyy')
+  const from = data.periodFrom ? formatIST(data.periodFrom, 'dd MMM yyyy', true) : 'Inception'
+  const to   = formatIST(data.periodTo, 'dd MMM yyyy', true)
   doc.text(`${from}  to  ${to}`, 14, 50)
 
   // ── SUMMARY BOXES ─────────────────────────────────────────────────────────

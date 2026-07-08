@@ -100,7 +100,6 @@ async function ProductContent({ id }: { id: string }) {
           <ProductActions
             productId={product._id}
             productName={product.name}
-            basePrice={product.price}
             maxStock={product.stock}
             weights={product.weights ?? []}
           />

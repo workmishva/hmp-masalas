@@ -1,7 +1,8 @@
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
-import { format, subDays } from 'date-fns'
+import { subDays } from 'date-fns'
+import { formatIST } from '@/lib/formatDate'
 import { auth } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import Order from '@/models/Order'
@@ -61,10 +62,10 @@ export async function POST() {
     // Daily summary for last 14 days — revenue from non-cancelled orders only
     const dailyMap: Record<string, { orders: number; revenue: number }> = {}
     for (let d = 13; d >= 0; d--) {
-      dailyMap[format(subDays(periodTo, d), 'dd MMM')] = { orders: 0, revenue: 0 }
+      dailyMap[formatIST(subDays(periodTo, d), 'dd MMM', true)] = { orders: 0, revenue: 0 }
     }
     for (const o of revenueOrders) {
-      const day = format(new Date(o.createdAt), 'dd MMM')
+      const day = formatIST(o.createdAt, 'dd MMM', true)
       if (dailyMap[day]) {
         dailyMap[day].orders  += 1
         dailyMap[day].revenue += o.totalAmount
@@ -100,7 +101,7 @@ export async function POST() {
       ),
     ])
 
-    const filename = `hmp-reset-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`
+    const filename = `hmp-reset-report-${formatIST(new Date(), 'yyyy-MM-dd', true)}.pdf`
 
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,

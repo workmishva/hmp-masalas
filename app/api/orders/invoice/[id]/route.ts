@@ -3,7 +3,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { format } from 'date-fns'
+import { formatIST } from '@/lib/formatDate'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { auth } from '@/lib/auth'
@@ -28,7 +28,10 @@ function rs(n: number): string {
 function generateInvoicePDF(order: {
   verificationCode: string
   createdAt:        Date
-  items:            { name: string; price: number; qty: number; weight?: string }[]
+  items:            { name: string; price: number; qty: number; weight?: string; deliveryCharge?: number; tax?: number }[]
+  productsPriceTotal: number
+  deliveryTotal:    number
+  taxTotal:         number
   totalAmount:      number
   deliveryAddress:  string
 }, customerName: string, logoBase64: string | null): Buffer {
@@ -96,7 +99,7 @@ function generateInvoicePDF(order: {
   valueStyle(); doc.text(order.verificationCode, rightCol, metaY + 5)
 
   labelStyle(); doc.text('DATE', rightCol + 50, metaY)
-  valueStyle(); doc.text(format(new Date(order.createdAt), 'dd MMM yyyy'), rightCol + 50, metaY + 5)
+  valueStyle(); doc.text(formatIST(order.createdAt, 'dd MMM yyyy'), rightCol + 50, metaY + 5)
 
   y = metaY + 18
 
@@ -108,17 +111,24 @@ function generateInvoicePDF(order: {
   y += 8
 
   // ── ITEMS TABLE ────────────────────────────────────────────────────────────
-  const tableBody = order.items.map((item) => [
-    item.name,
-    item.weight ?? '—',
-    rs(item.price),
-    String(item.qty),
-    rs(item.price * item.qty),
-  ])
+  const tableBody = order.items.map((item) => {
+    const itemPrice = item.price
+    const itemTax = item.tax ?? 0
+    const itemTotal = itemPrice + itemTax
+    return [
+      item.name,
+      item.weight ?? '—',
+      rs(itemPrice),
+      rs(itemTax),
+      rs(itemTotal),
+      String(item.qty),
+      rs(itemTotal * item.qty),
+    ]
+  })
 
   autoTable(doc, {
     startY:  y,
-    head:    [['Product Name', 'Weight', 'Unit Price', 'Qty', 'Total']],
+    head:    [['Product Name', 'Weight', 'Price', 'Tax', 'Product Total', 'Qty', 'Total']],
     body:    tableBody,
     theme:   'striped',
     headStyles: {
@@ -136,10 +146,12 @@ function generateInvoicePDF(order: {
     alternateRowStyles: { fillColor: BLUSH },
     columnStyles: {
       0: { cellWidth: 'auto' },
-      1: { halign: 'center', cellWidth: 22 },
-      2: { halign: 'right',  cellWidth: 32 },
-      3: { halign: 'center', cellWidth: 14 },
-      4: { halign: 'right',  cellWidth: 32 },
+      1: { halign: 'center', cellWidth: 15 },
+      2: { halign: 'right',  cellWidth: 22 },
+      3: { halign: 'right',  cellWidth: 18 },
+      4: { halign: 'right',  cellWidth: 26 },
+      5: { halign: 'center', cellWidth: 12 },
+      6: { halign: 'right',  cellWidth: 26 },
     },
     margin: { left: 14, right: 14 },
   })
@@ -150,33 +162,55 @@ function generateInvoicePDF(order: {
   const totalItems = order.items.reduce((s, i) => s + i.qty, 0)
   const summaryX   = pageW - 14 - 72
   let   sy         = tableBottom + 8
+  const rectHeight = 36
 
   doc.setFillColor(...BLUSH)
-  doc.roundedRect(summaryX, sy - 3, 72, 24, 3, 3, 'F')
+  doc.roundedRect(summaryX, sy - 3, 72, rectHeight, 3, 3, 'F')
   doc.setDrawColor(...BRAND)
   doc.setLineWidth(0.5)
-  doc.roundedRect(summaryX, sy - 3, 72, 24, 3, 3, 'S')
+  doc.roundedRect(summaryX, sy - 3, 72, rectHeight, 3, 3, 'S')
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
+  doc.setFontSize(8)
   doc.setTextColor(...MUTED)
-  doc.text('Total Items:', summaryX + 4, sy + 4)
-
+  doc.text('Products Price Total:', summaryX + 4, sy + 3)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
   doc.setTextColor(...DARK)
-  doc.text(String(totalItems), summaryX + 68, sy + 4, { align: 'right' })
+  doc.text(rs(order.productsPriceTotal), summaryX + 68, sy + 3, { align: 'right' })
 
-  sy += 9
+  sy += 7
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...MUTED)
+  doc.text('Tax Total:', summaryX + 4, sy + 3)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...DARK)
+  doc.text(rs(order.taxTotal), summaryX + 68, sy + 3, { align: 'right' })
+
+  sy += 7
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...MUTED)
+  doc.text('Delivery Total:', summaryX + 4, sy + 3)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...DARK)
+  doc.text(rs(order.deliveryTotal), summaryX + 68, sy + 3, { align: 'right' })
+
+  sy += 7
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...MUTED)
+  doc.text('Total Items:', summaryX + 4, sy + 3)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...DARK)
+  doc.text(String(totalItems), summaryX + 68, sy + 3, { align: 'right' })
+
+  sy += 8
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(...MUTED)
-  doc.text('Grand Total:', summaryX + 4, sy + 4)
-
+  doc.text('Grand Total:', summaryX + 4, sy + 3)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
+  doc.setFontSize(10)
   doc.setTextColor(...BRAND)
-  doc.text(rs(order.totalAmount), summaryX + 68, sy + 4, { align: 'right' })
+  doc.text(rs(order.totalAmount), summaryX + 68, sy + 3, { align: 'right' })
 
   // ── DELIVERY ADDRESS ────────────────────────────────────────────────────────
   let addrY = tableBottom + 8
@@ -252,7 +286,10 @@ export async function GET(
       {
         verificationCode: order.verificationCode,
         createdAt:        order.createdAt,
-        items:            order.items as { name: string; price: number; qty: number; weight?: string }[],
+        items:            order.items as { name: string; price: number; qty: number; weight?: string; deliveryCharge?: number; tax?: number }[],
+        productsPriceTotal: order.productsPriceTotal ?? order.totalAmount,
+        deliveryTotal:    order.deliveryTotal ?? 0,
+        taxTotal:         order.taxTotal ?? 0,
         totalAmount:      order.totalAmount,
         deliveryAddress:  order.deliveryAddress,
       },

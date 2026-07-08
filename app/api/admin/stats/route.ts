@@ -5,6 +5,7 @@ import Product from '@/models/Product'
 import Order from '@/models/Order'
 import User from '@/models/User'
 import { subDays, startOfDay, format } from 'date-fns'
+import { formatIST } from '@/lib/formatDate'
 
 // Active orders = verified + not archived by a previous admin reset.
 // Archived orders are still owned by their users (visible in My Orders)
@@ -64,7 +65,7 @@ export async function GET() {
       const date = subDays(new Date(), 6 - i)
       const key  = format(date, 'yyyy-MM-dd')
       return {
-        date:    format(date, 'MMM d'),
+        date:    formatIST(date, 'MMM d', true),
         revenue: dailyMap[key]?.revenue ?? 0,
         orders:  dailyMap[key]?.count   ?? 0,
       }

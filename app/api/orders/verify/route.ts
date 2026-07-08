@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { format } from 'date-fns'
+import { formatIST } from '@/lib/formatDate'
 import { auth } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import Cart from '@/models/Cart'
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
 
     // Load the cart with pending checkout data
     const cart = await Cart.findOne({ userId: session.user.id })
-      .populate('items.productId', 'name price stock isActive')
+      .populate('items.productId', 'name stock isActive weights')
 
     if (!cart || !cart.pendingCode) {
       return NextResponse.json({ error: 'No pending checkout found. Please restart checkout.' }, { status: 400 })
@@ -47,6 +47,7 @@ export async function POST(req: Request) {
       cart.pendingCode    = undefined
       cart.pendingAddress = undefined
       cart.pendingExpiry  = undefined
+      cart.pendingTotal   = undefined
       await cart.save()
       return NextResponse.json(
         { error: 'Your order code has expired. Please restart checkout.' },
@@ -59,15 +60,33 @@ export async function POST(req: Request) {
     }
 
     // Build order items snapshot + validate stock
-    const orderItems: { productId: string; name: string; price: number; qty: number; weight?: string }[] = []
-    let totalAmount = 0
+    const orderItems: { productId: string; name: string; price: number; qty: number; weight?: string; deliveryCharge?: number; tax?: number }[] = []
+    let productsPriceTotal = 0
+    let deliveryTotal = 0
+    let taxTotal = 0
 
     for (const item of cart.items) {
       const product = item.productId as unknown as {
-        _id: { toString(): string }; name: string; price: number; stock: number; isActive: boolean
+        _id: { toString(): string }; name: string; stock: number; isActive: boolean; weights?: any[]
       }
-      const cartItem       = item as unknown as { weightPrice?: number; weight?: string }
-      const effectivePrice = cartItem.weightPrice ?? product.price
+      const cartItem       = item as unknown as { weightPrice?: number; weight?: string; deliveryCharge?: number; tax?: number }
+      
+      let effectivePrice = 0
+      let itemDeliveryCharge = 0
+      let itemTaxPercent = 0
+
+      // Match current product model state from DB
+      let variant = cartItem.weight ? product.weights?.find(w => w.weight === cartItem.weight) : null
+      if (!variant) {
+        // Fallback to default variant
+        variant = product.weights?.find(w => w.isDefault && w.isActive !== false) ?? product.weights?.find(w => w.isActive !== false)
+      }
+
+      if (variant) {
+        effectivePrice = variant.price
+        itemDeliveryCharge = variant.deliveryCharge ?? 0
+        itemTaxPercent = variant.tax ?? 0
+      }
 
       if (!product?.isActive) {
         return NextResponse.json({ error: 'A product in your cart is no longer available' }, { status: 400 })
@@ -76,15 +95,24 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: `${product.name} only has ${product.stock} in stock` }, { status: 400 })
       }
 
+      const calculatedTaxAmount = effectivePrice * (itemTaxPercent / 100)
+
       orderItems.push({
         productId: product._id.toString(),
         name:      product.name,
         price:     effectivePrice,
         qty:       item.qty,
+        deliveryCharge: itemDeliveryCharge,
+        tax:       calculatedTaxAmount,
         ...(cartItem.weight ? { weight: cartItem.weight } : {}),
       })
-      totalAmount += effectivePrice * item.qty
+      
+      productsPriceTotal += effectivePrice * item.qty
+      deliveryTotal += itemDeliveryCharge * item.qty
+      taxTotal += calculatedTaxAmount * item.qty
     }
+
+    const totalAmount = productsPriceTotal + deliveryTotal + taxTotal
 
     // Decrement stock atomically for each item (with rollback on failure)
     const decremented: { productId: unknown; qty: number }[] = []
@@ -116,6 +144,9 @@ export async function POST(req: Request) {
     const order = await Order.create({
       userId:           session.user.id,
       items:            orderItems,
+      productsPriceTotal,
+      deliveryTotal,
+      taxTotal,
       totalAmount,
       deliveryAddress:  cart.pendingAddress ?? '',
       verificationCode: cart.pendingCode,
@@ -139,7 +170,7 @@ export async function POST(req: Request) {
         totalAmount:      order.totalAmount,
         deliveryAddress:  order.deliveryAddress,
         status:           order.status,
-        placedAt:         format(new Date(order.createdAt), 'dd MMM yyyy HH:mm'),
+        placedAt:         formatIST(order.createdAt, 'dd MMM yyyy HH:mm'),
       })
     } catch {
       // Excel failure must never block the response

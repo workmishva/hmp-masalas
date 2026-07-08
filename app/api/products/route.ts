@@ -7,7 +7,6 @@ import Product from '@/models/Product'
 const createSchema = z.object({
   name:        z.string().min(2),
   description: z.string().min(10),
-  price:       z.number().min(0),
   stock:       z.number().min(0),
   category:    z.string().min(2),
   images:      z.array(z.string()).optional().default([]),
@@ -19,7 +18,10 @@ const createSchema = z.object({
     subtitle:  z.string().optional().default(''),
     isDefault: z.boolean().optional().default(false),
     isActive:  z.boolean().optional().default(true),
-  })).optional().default([]),
+    deliveryCharge: z.number().min(0).optional().default(0),
+    tax:         z.number().min(0).max(100).optional().default(0),
+    description: z.string().optional().default(''),
+  })).min(1, 'At least one weight variant is required'),
 })
 
 // GET /api/products — public, supports ?q=&category=&sort=&page=&limit=&isActive=
@@ -47,15 +49,70 @@ export async function GET(req: NextRequest) {
     const sortMap: Record<string, Record<string, 1 | -1>> = {
       createdAt_desc: { createdAt: -1 },
       createdAt_asc:  { createdAt:  1 },
-      price_asc:      { price:  1 },
-      price_desc:     { price: -1 },
     }
     const sortObj = sortMap[sort] ?? { createdAt: -1 }
 
-    const [products, total] = await Promise.all([
-      Product.find(filter).sort(sortObj).skip((page - 1) * limit).limit(limit).lean(),
-      Product.countDocuments(filter),
-    ])
+    let products
+    let total
+
+    if (sort === 'price_asc' || sort === 'price_desc') {
+      const aggResult = await Promise.all([
+        Product.aggregate([
+          { $match: filter },
+          {
+            $addFields: {
+              defaultWeight: {
+                $filter: {
+                  input: '$weights',
+                  as: 'w',
+                  cond: { $and: [ { $eq: ['$$w.isDefault', true] }, { $ne: ['$$w.isActive', false] } ] }
+                }
+              }
+            }
+          },
+          {
+            $addFields: {
+              defaultWeight: {
+                $cond: {
+                  if: { $gt: [{ $size: '$defaultWeight' }, 0] },
+                  then: { $arrayElemAt: ['$defaultWeight', 0] },
+                  else: {
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: '$weights',
+                          as: 'w',
+                          cond: { $ne: ['$$w.isActive', false] }
+                        }
+                      },
+                      0
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          {
+            $addFields: {
+              sortPrice: { $ifNull: ['$defaultWeight.price', 0] }
+            }
+          },
+          { $sort: { sortPrice: sort === 'price_asc' ? 1 : -1 } },
+          { $skip: (page - 1) * limit },
+          { $limit: limit }
+        ]),
+        Product.countDocuments(filter)
+      ])
+      products = aggResult[0]
+      total = aggResult[1]
+    } else {
+      const findResult = await Promise.all([
+        Product.find(filter).sort(sortObj).skip((page - 1) * limit).limit(limit).lean(),
+        Product.countDocuments(filter),
+      ])
+      products = findResult[0]
+      total = findResult[1]
+    }
 
     return NextResponse.json({
       data: JSON.parse(JSON.stringify(products)),

@@ -115,7 +115,32 @@ function ProductCard({ product }: { product: IProduct }) {
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-xl font-bold text-chili-600">₹{product.price}</span>
+          {(() => {
+            const defaultWeight = product.weights?.find(w => w.isDefault && w.isActive !== false) ?? product.weights?.find(w => w.isActive !== false)
+            const displayPrice = defaultWeight ? defaultWeight.price : 0
+            const displayTaxPercent = defaultWeight ? (defaultWeight.tax ?? 0) : 0
+            const displayTaxAmount = displayPrice * (displayTaxPercent / 100)
+            const displayTotal = displayPrice + displayTaxAmount
+            return (
+              <div className="flex flex-col">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xl font-bold text-chili-600">
+                    ₹{displayTotal.toLocaleString('en-IN')}
+                  </span>
+                  {defaultWeight && (
+                    <span className="text-xs text-masala-400 font-medium">
+                      {defaultWeight.weight}
+                    </span>
+                  )}
+                </div>
+                {displayTaxAmount > 0 && (
+                  <span className="text-[9px] text-masala-400 font-normal">
+                    (Includes ₹{displayTaxAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })} Tax)
+                  </span>
+                )}
+              </div>
+            )
+          })()}
           {product.stock > 0 ? (
             <span className="flex items-center gap-1 text-xs text-cardamom-600 font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-cardamom-600" />

@@ -14,8 +14,8 @@ import { buildWhatsAppUrl } from '@/lib/whatsapp'
 interface CartProduct {
   _id: string
   name: string
-  price: number
   images: string[]
+  weights?: any[]
 }
 
 interface CartItem {
@@ -23,6 +23,8 @@ interface CartItem {
   qty:          number
   weight?:      string
   weightPrice?: number
+  deliveryCharge?: number
+  tax?: number
 }
 
 interface OrderResult {
@@ -107,9 +109,12 @@ export default function CheckoutPage() {
         let whatsappUrl   = ''
         if (settingsRes.ok) {
           const { data: settings } = await settingsRes.json()
-          if (settings?.whatsappNumber) {
-            whatsappUrl = buildWhatsAppUrl(settings.whatsappNumber, data.pendingCode)
-          }
+            whatsappUrl = buildWhatsAppUrl(settings.whatsappNumber, data.pendingCode, {
+              productsPriceTotal: data.pendingProductsPriceTotal ?? 0,
+              taxTotal:           data.pendingTaxTotal ?? 0,
+              deliveryTotal:      data.pendingDeliveryTotal ?? 0,
+              grandTotal:         data.pendingTotal ?? 0,
+            })
         }
         setOrderResult({
           verificationCode: data.pendingCode,
@@ -216,8 +221,25 @@ export default function CheckoutPage() {
     }
   }
 
-  const subtotal   = items.reduce((sum, item) => sum + (item.weightPrice ?? item.productId.price) * item.qty, 0)
   const totalItems = items.reduce((sum, item) => sum + item.qty, 0)
+
+  let productsPriceTotal = 0
+  let deliveryTotal = 0
+  let taxTotal = 0
+
+  items.forEach((item) => {
+    const variant = item.productId.weights?.find(w => w.weight === item.weight) ?? item.productId.weights?.find(w => w.isDefault && w.isActive !== false) ?? item.productId.weights?.find(w => w.isActive !== false)
+    const unitPrice = variant ? variant.price : (item.weightPrice ?? 0)
+    const unitDelivery = variant ? (variant.deliveryCharge ?? 0) : (item.deliveryCharge ?? 0)
+    const taxPercent = variant ? (variant.tax ?? 0) : 0
+    const unitTax = unitPrice * (taxPercent / 100)
+
+    productsPriceTotal += unitPrice * item.qty
+    deliveryTotal += unitDelivery * item.qty
+    taxTotal += unitTax * item.qty
+  })
+
+  const finalTotal = productsPriceTotal + deliveryTotal + taxTotal
 
   if (loading) {
     return (
@@ -382,6 +404,13 @@ export default function CheckoutPage() {
               <div className="p-5 space-y-3 max-h-72 overflow-y-auto">
                 {items.map((item) => {
                   const p = item.productId
+                  const variant = p.weights?.find(w => w.weight === item.weight) ?? p.weights?.find(w => w.isDefault && w.isActive !== false) ?? p.weights?.find(w => w.isActive !== false)
+                  const unitPrice = variant ? variant.price : (item.weightPrice ?? 0)
+                  const taxPercent = variant ? (variant.tax ?? 0) : 0
+                  const unitTax = unitPrice * (taxPercent / 100)
+                  const productUnitTotal = unitPrice + unitTax
+                  const productLineTotal = productUnitTotal * item.qty
+
                   return (
                     <div key={p._id} className="flex items-start gap-3">
                       <div className="w-12 h-12 rounded-lg overflow-hidden bg-masala-100 shrink-0">
@@ -393,10 +422,13 @@ export default function CheckoutPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-masala-900 truncate">{p.name}</p>
-                        <p className="text-xs text-masala-500">{item.weight ? `${item.weight} · ` : ''}Qty: {item.qty}</p>
+                        <p className="text-xs text-masala-500">
+                          {item.weight ? `${item.weight} · ` : ''}Qty: {item.qty}
+                          {unitTax > 0 && <span className="block text-[10px] text-masala-400 font-normal">(Includes ₹{(unitTax * item.qty).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Tax)</span>}
+                        </p>
                       </div>
                       <p className="text-sm font-bold text-masala-900 shrink-0">
-                        ₹{((item.weightPrice ?? p.price) * item.qty).toLocaleString('en-IN')}
+                        ₹{productLineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                     </div>
                   )
@@ -405,12 +437,22 @@ export default function CheckoutPage() {
 
               <div className="p-5 bg-masala-50 dark:bg-masala-200/60 space-y-3 border-t border-masala-200">
                 <div className="flex justify-between text-sm text-masala-600">
-                  <span>Delivery</span>
-                  <span className="text-cardamom-600 font-semibold">Free</span>
+                  <span>Products Price Total</span>
+                  <span>₹{productsPriceTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between text-sm text-masala-600">
+                  <span>Tax Total</span>
+                  <span>₹{taxTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between text-sm text-masala-600">
+                  <span>Delivery Total</span>
+                  <span className={deliveryTotal > 0 ? 'text-masala-600' : 'text-cardamom-600 font-semibold'}>
+                    {deliveryTotal > 0 ? `₹${deliveryTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Free'}
+                  </span>
                 </div>
                 <div className="flex justify-between font-bold text-masala-900 pt-2 border-t border-masala-200">
-                  <span>Total</span>
-                  <span className="text-chili-600 text-xl">₹{subtotal.toLocaleString('en-IN')}</span>
+                  <span>Grand Total</span>
+                  <span className="text-chili-600 text-xl">₹{finalTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
 
                 <Button
