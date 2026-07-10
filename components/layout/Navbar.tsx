@@ -1,5 +1,4 @@
 import { Suspense } from 'react'
-import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { getSettings } from '@/lib/settings'
 import { NavbarClient } from './NavbarClient'
@@ -18,33 +17,43 @@ async function NavbarAuthState() {
 
 function NavbarAuthFallback() {
   return (
-    <div className="flex items-center gap-3">
-      <div className="w-8 h-8 rounded-xl bg-masala-100 animate-pulse" />
-      <div className="hidden md:block w-20 h-8 rounded-xl bg-masala-100 animate-pulse" />
-    </div>
+    <>
+      {/* Logo placeholder */}
+      <div className="flex items-center gap-2">
+        <div className="w-9 h-9 rounded-xl bg-white/20 animate-pulse" />
+        <div className="w-28 h-5 rounded-lg bg-white/20 animate-pulse" />
+      </div>
+      {/* Right-side skeleton */}
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-xl bg-white/20 animate-pulse" />
+        <div className="hidden md:block w-20 h-8 rounded-xl bg-white/20 animate-pulse" />
+      </div>
+    </>
   )
 }
 
+/**
+ * Navbar — glass background uses the exact same Tailwind classes
+ * as the Hero "WhatsApp Us" button:
+ *   bg-white/6  ·  backdrop-blur-xl  ·  border-white/15
+ *
+ * Text/icon colors are managed by NavbarClient (white over hero,
+ * dark brand colors after scrolling past it).
+ *
+ * Scroll opacity is handled purely by CSS:
+ *   #site-header[data-scrolled="true"] in globals.css
+ */
 export function Navbar() {
   return (
-    <header className="sticky top-0 z-50 bg-white/95 dark:bg-masala-100/95 backdrop-blur-sm border-b border-masala-200">
+    <header
+      id="site-header"
+      className="sticky top-0 z-50 rounded-b-2xl backdrop-blur-xl border-b border-white/15 shadow-[0_4px_30px_rgba(0,0,0,0.08)]"
+    >
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between relative">
-        {/* Logo — always static, renders instantly */}
-        <Link href="/" className="flex items-center gap-2 shrink-0">
-          {/* icon-512.svg is 666×375 — width:auto lets it expand naturally at
-              height:36px (~64px wide), preserving full artwork with zero clipping */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/icon-512.svg"
-            alt="HMP Masala"
-            style={{ height: '36px', width: 'auto', display: 'block', flexShrink: 0 }}
-          />
-          <span className="text-xl font-brand font-black tracking-tight bg-gradient-to-r from-chili-600 to-saffron-500 bg-clip-text text-transparent">
-            HMP Masala
-          </span>
-        </Link>
-
-        {/* Auth-dependent section streams in via Suspense */}
+        {/*
+          NavbarClient renders the logo wordmark first in its fragment,
+          then nav links, then right-side actions — all color-reactive.
+        */}
         <Suspense fallback={<NavbarAuthFallback />}>
           <NavbarAuthState />
         </Suspense>

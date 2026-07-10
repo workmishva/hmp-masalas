@@ -147,6 +147,121 @@ body {
   background-color: color-mix(in srgb, var(--color-masala-100) 95%, transparent) !important;
 }
 
+/* ============================================================
+   NAVBAR GLASS SYSTEM
+   ─────────────────────────────────────────────────────────────
+   The <header id="site-header"> uses the exact same Tailwind
+   classes as the Hero "WhatsApp Us" button:
+     bg-white/6  ·  backdrop-blur-xl  ·  border-white/15
+
+   Two data attributes drive all visual states:
+     data-hero="true/false"     → white vs dark text/icons
+     data-scrolled="true/false" → background opacity lift
+
+   All transitions are CSS-only — zero JS style writes.
+   ============================================================ */
+
+/* ── Shared transition ── */
+#site-header {
+  /* Same glass as Hero WhatsApp button (bg-white/6 = rgba 6%).
+     Set here explicitly so no Tailwind class can override it. */
+  background-color: rgba(255, 255, 255, 0.06);
+  transition:
+    background-color 0.35s ease,
+    box-shadow       0.35s ease,
+    border-color     0.35s ease;
+}
+
+/* ── Scrolled state: nudge glass opacity, deepen shadow ─────── */
+#site-header[data-scrolled="true"] {
+  /* bg-white/6 → bg-white/20, still clearly glass */
+  background-color: rgba(255, 255, 255, 0.20);
+  box-shadow:       0 4px 40px rgba(0, 0, 0, 0.11);
+  border-color:     rgba(255, 255, 255, 0.22);
+}
+
+/* ── Semantic navbar element classes ─────────────────────────── */
+
+/* Logo wordmark */
+.navbar-wordmark {
+  background: linear-gradient(to right, #b22222, #e9a21c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  transition: color 0.3s ease, -webkit-text-fill-color 0.3s ease;
+}
+
+/* Nav links */
+.navbar-link {
+  color: #4a3028; /* masala-800 */
+  transition: color 0.3s ease;
+}
+.navbar-link:hover      { color: #b22222; /* chili-600 */ }
+.navbar-link-active     { color: #b22222; /* chili-600 */ }
+
+/* Icon buttons (cart, hamburger, profile) */
+.navbar-icon {
+  color: #4a3028; /* masala-800 */
+  transition: color 0.3s ease, background-color 0.3s ease;
+}
+.navbar-icon:hover { background-color: #f6ede7; /* masala-100 */ }
+
+/* User avatar badge */
+.navbar-avatar {
+  background-color: #fce8e8; /* chili-100 */
+  color: #b22222;             /* chili-600 */
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Sign In button */
+.navbar-signin {
+  background-color: #b22222; /* chili-600 */
+  color: white;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+.navbar-signin:hover { background-color: #9a1c1c; /* chili-700 */ }
+
+/* ── Hero mode: white text/icons over dark hero image ─────────
+   Activated when data-hero="true" on #site-header.
+   Uses :is() to keep specificity consistent (0,2,0).           */
+#site-header[data-hero="true"] .navbar-wordmark {
+  background:                none;
+  -webkit-background-clip:   unset;
+  background-clip:           unset;
+  -webkit-text-fill-color:   white;
+  color:                     white;
+}
+
+#site-header[data-hero="true"] .navbar-link {
+  color: rgba(255, 255, 255, 0.80);
+}
+#site-header[data-hero="true"] .navbar-link:hover,
+#site-header[data-hero="true"] .navbar-link-active {
+  color: white;
+}
+
+#site-header[data-hero="true"] .navbar-icon {
+  color: white;
+}
+#site-header[data-hero="true"] .navbar-icon:hover {
+  background-color: rgba(255, 255, 255, 0.12); /* matches WA btn hover */
+}
+
+#site-header[data-hero="true"] .navbar-avatar {
+  background-color: rgba(255, 255, 255, 0.20);
+  color: white;
+}
+
+#site-header[data-hero="true"] .navbar-signin {
+  background-color: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: white;
+}
+#site-header[data-hero="true"] .navbar-signin:hover {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
 /* Hero image strip — infinite scroll (pure CSS, no JS) */
 @keyframes hero-scroll-left {
   0%   { transform: translateX(0); }

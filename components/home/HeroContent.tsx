@@ -133,7 +133,7 @@ export function HeroContent({ whatsappUrl }: { whatsappUrl: string }) {
       {/* ── ANIMATED IMAGE GRID ── */}
       <motion.div
         className="absolute inset-0 z-0 flex flex-col justify-center gap-4 py-8"
-        style={{ y: parallaxY }}
+        style={{ y: parallaxY, backgroundColor: '#3a211a' }}
         aria-hidden="true"
       >
         <div
@@ -148,10 +148,10 @@ export function HeroContent({ whatsappUrl }: { whatsappUrl: string }) {
       </motion.div>
 
       {/* ── OVERLAYS ── */}
-      {/* Cinematic dark gradient */}
-      <div className="absolute inset-0 z-1 bg-gradient-to-b from-[rgba(58,33,26,0.88)] via-[rgba(58,33,26,0.72)] to-[rgba(58,33,26,0.94)]" />
+      {/* Soft dark gradient — light enough to keep images visible */}
+      <div className="absolute inset-0 z-1 bg-gradient-to-b from-[rgba(58,33,26,0.55)] via-[rgba(58,33,26,0.38)] to-[rgba(58,33,26,0.60)]" />
       {/* Warm radial spotlight */}
-      <div className="absolute inset-0 z-1 bg-[radial-gradient(ellipse_at_center,rgba(233,162,28,0.12)_0%,transparent_70%)]" />
+      <div className="absolute inset-0 z-1 bg-[radial-gradient(ellipse_at_center,rgba(233,162,28,0.10)_0%,transparent_65%)]" />
       {/* Film grain */}
       <div
         className="absolute inset-0 z-1 opacity-[0.03] pointer-events-none"

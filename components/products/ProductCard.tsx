@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { Package } from 'lucide-react'
+import { Package, ShoppingCart } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { IProduct } from '@/types'
 import { CATEGORY_META } from '@/lib/categories'
@@ -123,8 +123,13 @@ export function ProductCard({ product, priority = false, index = 0 }: ProductCar
           </div>
 
           {/* CTA bar */}
-          <div className="w-full py-2.5 rounded-xl bg-masala-100 dark:bg-masala-200 text-masala-700 text-sm font-semibold text-center group-hover:bg-chili-600 group-hover:text-white transition-all duration-200">
-            View Product →
+          <div className={`w-full py-2.5 rounded-xl text-sm font-semibold text-center flex items-center justify-center gap-2 transition-all duration-200 ${
+            isOOS
+              ? 'bg-masala-100 dark:bg-masala-200 text-masala-400 cursor-not-allowed'
+              : 'bg-masala-100 dark:bg-masala-200 text-masala-700 group-hover:bg-chili-600 group-hover:text-white'
+          }`}>
+            <ShoppingCart size={14} />
+            {isOOS ? 'Out of Stock' : 'Add to Cart'}
           </div>
         </div>
       </Link>

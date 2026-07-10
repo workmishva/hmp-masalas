@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { connection } from 'next/server'
-import { Leaf, FlameKindling, ShieldCheck, ChevronRight } from 'lucide-react'
+import { Leaf, FlameKindling, ShieldCheck, ChevronRight, ShoppingCart } from 'lucide-react'
 import { connectDB } from '@/lib/db'
 import Product from '@/models/Product'
 import { HeroContent } from '@/components/home/HeroContent'
@@ -152,8 +152,13 @@ function ProductCard({ product }: { product: IProduct }) {
         </div>
 
         <div className="pt-1">
-          <span className="block w-full text-center py-2 rounded-xl bg-masala-100 text-masala-700 text-sm font-medium group-hover:bg-chili-600 group-hover:text-white transition-colors duration-200">
-            View Product
+          <span className={`block w-full text-center py-2 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors duration-200 ${
+            product.stock === 0
+              ? 'bg-masala-100 text-masala-400 cursor-not-allowed'
+              : 'bg-masala-100 text-masala-700 group-hover:bg-chili-600 group-hover:text-white'
+          }`}>
+            <ShoppingCart size={14} />
+            {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
           </span>
         </div>
       </div>
@@ -194,8 +199,11 @@ export default async function HomePage() {
   return (
     <div className="overflow-x-hidden">
 
-      {/* ── Hero ── */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#3a211a]">
+      {/* ── Hero ────────────────────────────────────────────────────────────
+           -mt-16 pulls the section up behind the sticky navbar (64px tall)
+           so the navbar glass floats directly over the dark hero image.
+           pt-16 inside ensures hero content is not hidden under the navbar. */}
+      <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#3a211a] -mt-16 pt-16">
         <HeroContent whatsappUrl={whatsappUrl} />
       </section>
 
